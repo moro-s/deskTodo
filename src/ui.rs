@@ -1,7 +1,7 @@
 use crate::app::App;
 use crate::models::{date_key, TodoItem};
 use crate::storage::save_todos;
-use crate::theme::lighten;
+use crate::theme::{lighten, Theme};
 use chrono::{Datelike, Local, NaiveDate, Timelike};
 use eframe::egui::{
     self, Align, Align2, Color32, CornerRadius, FontId, Key, Pos2, RichText, Sense, Vec2,
@@ -44,6 +44,71 @@ fn move_todo(todos: &mut Vec<TodoItem>, from: usize, insert_at: usize) -> bool {
     let item = todos.remove(from);
     todos.insert(target, item);
     true
+}
+
+fn square_combo(
+    ui: &mut egui::Ui,
+    value: i32,
+    max: i32,
+    theme: &Theme,
+) -> Option<i32> {
+    let mut picked = None;
+    let response = ui.allocate_response(Vec2::new(38.0, 38.0), Sense::click());
+    let rect = response.rect;
+    let hovered = response.hovered();
+    let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+    let popup = egui::Popup::menu(&response);
+    let open = popup.is_open();
+    let active = open || hovered;
+    let fill = if active {
+        lighten(theme.cell_out_month)
+    } else {
+        theme.cell_out_month
+    };
+    let stroke = if active {
+        egui::Stroke::new(1.4, theme.accent)
+    } else {
+        egui::Stroke::new(1.0, theme.separator)
+    };
+    let corner = CornerRadius::same(10);
+    ui.painter().rect_filled(rect, corner, fill);
+    ui.painter().rect_stroke(rect, corner, stroke, egui::StrokeKind::Inside);
+    ui.painter().text(
+        rect.center() + Vec2::new(0.0, -3.5),
+        Align2::CENTER_CENTER,
+        format!("{value:02}"),
+        FontId::proportional(13.5),
+        theme.text_primary,
+    );
+    ui.painter().text(
+        rect.center() + Vec2::new(0.0, 10.0),
+        Align2::CENTER_CENTER,
+        "▾",
+        FontId::proportional(7.5),
+        theme.text_muted,
+    );
+
+    popup.show(|ui| {
+        egui::ScrollArea::vertical()
+            .max_height(220.0)
+            .show(ui, |ui| {
+                for candidate in 0..max {
+                    let selected = candidate == value;
+                    let label = RichText::new(format!("{candidate:02}"))
+                        .size(13.0)
+                        .color(if selected {
+                            theme.accent
+                        } else {
+                            theme.text_primary
+                        });
+                    if ui.selectable_label(selected, label).clicked() {
+                        picked = Some(candidate);
+                    }
+                }
+            });
+    });
+
+    picked
 }
 
 fn anim_towards(ui: &egui::Ui, id: egui::Id, target: f32, speed: f32) -> f32 {
@@ -375,6 +440,7 @@ impl App {
                 egui::Layout::right_to_left(egui::Align::Center),
                 |ui| {
                     if self.remind_enabled {
+                        let theme = self.theme();
                         if ui
                             .button(RichText::new("现在").size(13.5))
                             .on_hover_text("设为当前时间")
@@ -385,42 +451,21 @@ impl App {
                             self.remind_minute = now.minute() as i32;
                             self.remind_second = now.second() as i32;
                         }
-                        egui::ComboBox::from_id_salt("remind_second")
-                            .width(64.0)
-                            .selected_text(format!("{:02} 秒", self.remind_second))
-                            .show_ui(ui, |ui| {
-                                for value in 0..60 {
-                                    ui.selectable_value(
-                                        &mut self.remind_second,
-                                        value,
-                                        format!("{value:02}"),
-                                    );
-                                }
-                            });
-                        egui::ComboBox::from_id_salt("remind_minute")
-                            .width(64.0)
-                            .selected_text(format!("{:02} 分", self.remind_minute))
-                            .show_ui(ui, |ui| {
-                                for value in 0..60 {
-                                    ui.selectable_value(
-                                        &mut self.remind_minute,
-                                        value,
-                                        format!("{value:02}"),
-                                    );
-                                }
-                            });
-                        egui::ComboBox::from_id_salt("remind_hour")
-                            .width(64.0)
-                            .selected_text(format!("{:02} 时", self.remind_hour))
-                            .show_ui(ui, |ui| {
-                                for value in 0..24 {
-                                    ui.selectable_value(
-                                        &mut self.remind_hour,
-                                        value,
-                                        format!("{value:02}"),
-                                    );
-                                }
-                            });
+                        ui.label(RichText::new("秒").size(12.0).color(theme.text_muted));
+                        let picked_second = square_combo(ui, self.remind_second, 60, theme);
+                        ui.label(RichText::new("分").size(12.0).color(theme.text_muted));
+                        let picked_minute = square_combo(ui, self.remind_minute, 60, theme);
+                        ui.label(RichText::new("时").size(12.0).color(theme.text_muted));
+                        let picked_hour = square_combo(ui, self.remind_hour, 24, theme);
+                        if let Some(value) = picked_second {
+                            self.remind_second = value;
+                        }
+                        if let Some(value) = picked_minute {
+                            self.remind_minute = value;
+                        }
+                        if let Some(value) = picked_hour {
+                            self.remind_hour = value;
+                        }
                     }
                     ui.checkbox(&mut self.remind_enabled, "⏰ 到点提醒");
                 },
