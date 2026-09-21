@@ -78,7 +78,7 @@ impl App {
                 egui::Panel::right("titlebar_right")
                     .frame(egui::Frame::NONE.fill(titlebar_fill))
                     .resizable(false)
-                    .exact_size(168.0)
+                    .exact_size(216.0)
                     .show_separator_line(false)
                     .show(ui, |ui| {
                         ui.with_layout(
@@ -93,6 +93,20 @@ impl App {
                                     .clicked()
                                 {
                                     self.hide_to_tray(ctx);
+                                }
+                                let maximized =
+                                    ctx.input(|i| i.viewport().maximized).unwrap_or(false);
+                                let max_tip = if maximized {
+                                    "还原窗口"
+                                } else {
+                                    "最大化"
+                                };
+                                if ui
+                                    .button(RichText::new("□").size(14.0))
+                                    .on_hover_text(max_tip)
+                                    .clicked()
+                                {
+                                    ctx.send_viewport_cmd(ViewportCommand::Maximized(!maximized));
                                 }
                                 let pin_label = if self.pinned { "置顶√" } else { "置顶" };
                                 if ui
@@ -149,6 +163,11 @@ impl App {
                     if response.dragged() {
                         ctx.send_viewport_cmd(ViewportCommand::StartDrag);
                     }
+                    if response.double_clicked() {
+                        let maximized =
+                            ctx.input(|i| i.viewport().maximized).unwrap_or(false);
+                        ctx.send_viewport_cmd(ViewportCommand::Maximized(!maximized));
+                    }
                     let _ = rect;
                 });
 
@@ -182,7 +201,7 @@ impl App {
         ui.spacing_mut().item_spacing.x = 5.0;
         let spacing = ui.spacing().item_spacing.x;
         let cell_w = (ui.available_width() - spacing * 6.0) / 7.0;
-        let cell_h = 82.0;
+        let cell_h = ((ui.available_height() - 386.0) / 6.0).clamp(82.0, 150.0);
         let theme = self.theme();
 
         egui::Grid::new("weekday_header")

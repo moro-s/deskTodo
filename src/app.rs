@@ -242,6 +242,7 @@ impl eframe::App for App {
                     .inner_margin(12.0)
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
+                        ui.set_min_height(ui.available_height());
                         self.draw_editor(ui);
                     });
             });
