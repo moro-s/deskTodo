@@ -265,35 +265,25 @@ impl App {
                     );
 
                     if let Some(items) = todos {
+                        let pending: Vec<_> =
+                            items.iter().filter(|item| !item.done).collect();
                         let mut y = rect.left_top().y + 26.0;
-                        for item in items.iter().take(3) {
+                        for item in pending.iter().take(3) {
                             if y + 14.0 > rect.bottom() - 3.0 {
                                 break;
                             }
-                            let prefix = if item.done {
-                                "√ "
-                            } else if item.remind_at.is_some() {
-                                "⏰ "
-                            } else {
-                                "• "
-                            };
-                            let text = format!("{}{}", prefix, truncate_chars(&item.text, 10));
-                            let color = if item.done {
-                                theme.text_done
-                            } else {
-                                theme.text_secondary
-                            };
+                            let text = format!("• {}", truncate_chars(&item.text, 10));
                             painter.text(
                                 Pos2::new(rect.left() + 8.0, y),
                                 Align2::LEFT_TOP,
                                 text,
                                 FontId::proportional(11.0),
-                                color,
+                                theme.text_secondary,
                             );
                             y += 15.0;
                         }
-                        if items.len() > 3 {
-                            let badge_text = format!("+{}", items.len() - 3);
+                        if pending.len() > 3 {
+                            let badge_text = format!("+{}", pending.len() - 3);
                             let badge_pos = Pos2::new(rect.right() - 6.0, rect.bottom() - 5.0);
                             let badge_rect =
                                 egui::Rect::from_center_size(badge_pos, Vec2::new(24.0, 14.0));
