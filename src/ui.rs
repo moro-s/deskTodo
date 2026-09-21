@@ -365,6 +365,7 @@ impl App {
         ui.add_space(6.0);
         egui::ScrollArea::vertical()
             .max_height(200.0)
+            .auto_shrink([false, true])
             .show(ui, |ui| {
                 let key = date_key(self.selected);
                 let has_items = self.todos.get(&key).is_some_and(|items| !items.is_empty());
@@ -384,6 +385,10 @@ impl App {
                     let mut changed = false;
                     let mut clear_done = false;
                     for index in 0..todos.len() {
+                        let remind_label = todos[index]
+                            .remind_at
+                            .as_ref()
+                            .map(|remind_at| format!("⏰ {remind_at}"));
                         ui.horizontal(|ui| {
                             let mut done = todos[index].done;
                             if ui.checkbox(&mut done, "").changed() {
@@ -400,22 +405,31 @@ impl App {
                             if todos[index].done {
                                 text = text.strikethrough();
                             }
-                            ui.label(text);
-                            if let Some(remind_at) = &todos[index].remind_at {
-                                ui.label(
-                                    RichText::new(format!("⏰ {remind_at}"))
-                                        .small()
-                                        .color(theme.accent),
-                                );
-                            }
-                            if ui
-                                .button(RichText::new("✕").size(13.0).color(theme.danger))
-                                .on_hover_text("删除")
-                                .clicked()
-                            {
-                                todos.remove(index);
-                                changed = true;
-                            }
+                            let text_width = (ui.available_width() - 110.0).max(60.0);
+                            ui.add_sized(
+                                [text_width, 20.0],
+                                egui::Label::new(text).truncate(),
+                            );
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui
+                                        .button(RichText::new("✕").size(13.0).color(theme.danger))
+                                        .on_hover_text("删除")
+                                        .clicked()
+                                    {
+                                        todos.remove(index);
+                                        changed = true;
+                                    }
+                                    if let Some(remind_label) = &remind_label {
+                                        ui.label(
+                                            RichText::new(remind_label.clone())
+                                                .small()
+                                                .color(theme.accent),
+                                        );
+                                    }
+                                },
+                            );
                         });
                         if index + 1 < todos.len() {
                             ui.add_space(4.0);
