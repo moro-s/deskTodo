@@ -46,69 +46,136 @@ fn move_todo(todos: &mut Vec<TodoItem>, from: usize, insert_at: usize) -> bool {
     true
 }
 
-fn square_combo(
+fn time_spinner_column(
     ui: &mut egui::Ui,
-    value: i32,
+    salt: &str,
+    value: &mut i32,
     max: i32,
     theme: &Theme,
-) -> Option<i32> {
-    let mut picked = None;
-    let response = ui.allocate_response(Vec2::new(38.0, 38.0), Sense::click());
-    let rect = response.rect;
-    let hovered = response.hovered();
-    let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
-    let popup = egui::Popup::menu(&response);
-    let open = popup.is_open();
-    let active = open || hovered;
-    let fill = if active {
-        lighten(theme.cell_out_month)
-    } else {
-        theme.cell_out_month
-    };
-    let stroke = if active {
-        egui::Stroke::new(1.4, theme.accent)
-    } else {
-        egui::Stroke::new(1.0, theme.separator)
-    };
-    let corner = CornerRadius::same(10);
-    ui.painter().rect_filled(rect, corner, fill);
-    ui.painter().rect_stroke(rect, corner, stroke, egui::StrokeKind::Inside);
-    ui.painter().text(
-        rect.center() + Vec2::new(0.0, -3.5),
-        Align2::CENTER_CENTER,
-        format!("{value:02}"),
-        FontId::proportional(13.5),
-        theme.text_primary,
-    );
-    ui.painter().text(
-        rect.center() + Vec2::new(0.0, 10.0),
-        Align2::CENTER_CENTER,
-        "▾",
-        FontId::proportional(7.5),
-        theme.text_muted,
-    );
-
-    popup.show(|ui| {
-        egui::ScrollArea::vertical()
-            .max_height(220.0)
-            .show(ui, |ui| {
+    scroll_to_selected: bool,
+) {
+    let col_w = 54.0;
+    let row_h = 30.0;
+    egui::ScrollArea::vertical()
+        .id_salt(salt)
+        .max_width(col_w)
+        .max_height(row_h * 5.0)
+        .scroll_bar_visibility(egui::containers::scroll_area::ScrollBarVisibility::AlwaysHidden)
+        .show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.set_width(col_w);
                 for candidate in 0..max {
-                    let selected = candidate == value;
-                    let label = RichText::new(format!("{candidate:02}"))
-                        .size(13.0)
-                        .color(if selected {
-                            theme.accent
-                        } else {
-                            theme.text_primary
-                        });
-                    if ui.selectable_label(selected, label).clicked() {
-                        picked = Some(candidate);
+                    let selected = candidate == *value;
+                    let (rect, response) = ui.allocate_exact_size(
+                        Vec2::new(col_w, row_h),
+                        Sense::click(),
+                    );
+                    let clicked = response.clicked();
+                    let hovered = response.hovered();
+                    if selected {
+                        ui.painter().rect_filled(
+                            rect,
+                            CornerRadius::same(6),
+                            theme.cell_today,
+                        );
                     }
+                    ui.painter().text(
+                        rect.center(),
+                        Align2::CENTER_CENTER,
+                        format!("{candidate:02}"),
+                        FontId::proportional(14.0),
+                        if selected {
+                            theme.accent
+                        } else if hovered {
+                            theme.text_primary
+                        } else {
+                            theme.text_secondary
+                        },
+                    );
+                    if clicked {
+                        *value = candidate;
+                    }
+                    if scroll_to_selected && selected {
+                        response.scroll_to_me(Some(Align::Center));
+                    }
+                    let _ = response.on_hover_cursor(egui::CursorIcon::PointingHand);
                 }
             });
-    });
+        });
+}
 
-    picked
+fn draw_time_picker(
+    ui: &mut egui::Ui,
+    hour: &mut i32,
+    minute: &mut i32,
+    second: &mut i32,
+    theme: &Theme,
+) -> bool {
+    let mut now_clicked = false;
+    let trigger = ui.add_sized(
+        [124.0, 32.0],
+        egui::Button::new(RichText::new(format!(
+            "⏰ {:02}:{:02}:{:02}",
+            *hour, *minute, *second
+        ))
+        .size(13.5)),
+    );
+    let scroll_marker = egui::Id::new("time_picker_scroll");
+    let mut scroll_to = ui
+        .memory(|m| m.data.get_temp::<bool>(scroll_marker))
+        .unwrap_or(false);
+    if trigger.clicked() {
+        scroll_to = true;
+    }
+    egui::Popup::from_toggle_button_response(&trigger)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .show(|ui| {
+            let panel_w = 54.0 * 3.0 + ui.spacing().item_spacing.x * 2.0;
+            ui.set_min_width(panel_w);
+            ui.horizontal(|ui| {
+                time_spinner_column(ui, "tp_hour", hour, 24, theme, scroll_to);
+                time_spinner_column(ui, "tp_minute", minute, 60, theme, scroll_to);
+                time_spinner_column(ui, "tp_second", second, 60, theme, scroll_to);
+            });
+            ui.add_space(2.0);
+            let (sep_rect, _) = ui.allocate_exact_size(
+                Vec2::new(panel_w, 1.0),
+                Sense::hover(),
+            );
+            ui.painter().hline(
+                sep_rect.left()..=sep_rect.right(),
+                sep_rect.center().y,
+                egui::Stroke::new(1.0, theme.separator),
+            );
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                if ui.button(RichText::new("此刻").size(13.0)).clicked() {
+                    now_clicked = true;
+                    ui.memory_mut(|m| {
+                        m.data.insert_temp(scroll_marker, true)
+                    });
+                }
+                ui.with_layout(
+                    egui::Layout::right_to_left(Align::Center),
+                    |ui| {
+                        if ui
+                            .button(
+                                RichText::new("确定")
+                                    .size(13.0)
+                                    .color(theme.accent),
+                            )
+                            .clicked()
+                        {
+                            egui::Popup::close_all(ui.ctx());
+                        }
+                    },
+                );
+            });
+        });
+    if scroll_to {
+        ui.memory_mut(|m| m.data.insert_temp(scroll_marker, false));
+    }
+    now_clicked
 }
 
 fn anim_towards(ui: &egui::Ui, id: egui::Id, target: f32, speed: f32) -> f32 {
@@ -441,30 +508,19 @@ impl App {
                 |ui| {
                     if self.remind_enabled {
                         let theme = self.theme();
-                        if ui
-                            .button(RichText::new("现在").size(13.5))
-                            .on_hover_text("设为当前时间")
-                            .clicked()
-                        {
+                        let mut hour = self.remind_hour;
+                        let mut minute = self.remind_minute;
+                        let mut second = self.remind_second;
+                        let now_clicked =
+                            draw_time_picker(ui, &mut hour, &mut minute, &mut second, theme);
+                        self.remind_hour = hour;
+                        self.remind_minute = minute;
+                        self.remind_second = second;
+                        if now_clicked {
                             let now = Local::now();
                             self.remind_hour = now.hour() as i32;
                             self.remind_minute = now.minute() as i32;
                             self.remind_second = now.second() as i32;
-                        }
-                        ui.label(RichText::new("秒").size(12.0).color(theme.text_muted));
-                        let picked_second = square_combo(ui, self.remind_second, 60, theme);
-                        ui.label(RichText::new("分").size(12.0).color(theme.text_muted));
-                        let picked_minute = square_combo(ui, self.remind_minute, 60, theme);
-                        ui.label(RichText::new("时").size(12.0).color(theme.text_muted));
-                        let picked_hour = square_combo(ui, self.remind_hour, 24, theme);
-                        if let Some(value) = picked_second {
-                            self.remind_second = value;
-                        }
-                        if let Some(value) = picked_minute {
-                            self.remind_minute = value;
-                        }
-                        if let Some(value) = picked_hour {
-                            self.remind_hour = value;
                         }
                     }
                     ui.checkbox(&mut self.remind_enabled, "⏰ 到点提醒");
