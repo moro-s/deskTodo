@@ -442,7 +442,16 @@ impl App {
             }
         }
 
-        ui.add_space(6.0);
+        ui.add_space(8.0);
+        let separator_color = self.theme().separator;
+        let separator_width = ui.available_width();
+        let (separator_rect, _) = ui.allocate_exact_size(Vec2::new(separator_width, 1.0), Sense::hover());
+        ui.painter().hline(
+            separator_rect.left()..=separator_rect.right(),
+            separator_rect.center().y,
+            egui::Stroke::new(1.0, separator_color),
+        );
+        ui.add_space(8.0);
         egui::ScrollArea::vertical()
             .max_height(if self.editor_expanded {
                 140.0
