@@ -116,6 +116,8 @@ impl App {
     }
 
     pub(crate) fn draw_calendar(&mut self, ui: &mut egui::Ui) {
+        let default_spacing = ui.spacing().item_spacing.x;
+        ui.spacing_mut().item_spacing.x = 5.0;
         let spacing = ui.spacing().item_spacing.x;
         let cell_w = (ui.available_width() - spacing * 6.0) / 7.0;
         let cell_h = 82.0;
@@ -271,6 +273,7 @@ impl App {
             }
             self.selected = date;
         }
+        ui.spacing_mut().item_spacing.x = default_spacing;
     }
 
     pub(crate) fn draw_editor(&mut self, ui: &mut egui::Ui) {

@@ -19,8 +19,8 @@ fn main() -> eframe::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_decorations(false)
             .with_resizable(false)
-            .with_inner_size([560.0, 952.0])
-            .with_min_inner_size([520.0, 860.0])
+            .with_inner_size([640.0, 952.0])
+            .with_min_inner_size([600.0, 860.0])
             .with_title("桌面日历待办")
             .with_icon(Arc::new(icon::calendar_icon_data())),
         ..Default::default()
