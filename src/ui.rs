@@ -25,6 +25,58 @@ impl App {
             .frame(egui::Frame::NONE.fill(self.theme().titlebar))
             .show(ui, |ui| {
                 ui.set_min_height(46.0);
+                let titlebar_rect = ui.max_rect();
+                let titlebar_fill = self.theme().titlebar;
+
+                egui::Panel::right("titlebar_right")
+                    .frame(egui::Frame::NONE.fill(titlebar_fill))
+                    .resizable(false)
+                    .exact_size(220.0)
+                    .show_separator_line(false)
+                    .show(ui, |ui| {
+                        ui.with_layout(
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                ui.add_space(10.0);
+                                if ui
+                                    .button(
+                                        RichText::new("✕").size(15.0).color(self.theme().danger),
+                                    )
+                                    .on_hover_text("关闭到托盘")
+                                    .clicked()
+                                {
+                                    self.hide_to_tray(ctx);
+                                }
+                                if ui
+                                    .button(RichText::new("—").size(15.0))
+                                    .on_hover_text("最小化到托盘")
+                                    .clicked()
+                                {
+                                    self.hide_to_tray(ctx);
+                                }
+                                let pin_label = if self.pinned { "置顶✓" } else { "置顶" };
+                                if ui
+                                    .button(RichText::new(pin_label).size(13.0))
+                                    .on_hover_text("快捷键 Ctrl+Alt+T")
+                                    .clicked()
+                                {
+                                    self.set_pinned(ctx, !self.pinned);
+                                }
+                                let theme = self.theme();
+                                if ui
+                                    .button(RichText::new(theme.icon).size(15.0))
+                                    .on_hover_text(format!(
+                                        "主题：{}（点击切换）",
+                                        theme.name
+                                    ))
+                                    .clicked()
+                                {
+                                    self.cycle_theme(ctx);
+                                }
+                            },
+                        );
+                    });
+
                 ui.horizontal_centered(|ui| {
                     ui.add_space(10.0);
                     if ui
@@ -52,52 +104,22 @@ impl App {
                         self.selected = today;
                     }
 
-                    let month_text = format!("{}年{}月", self.view_year, self.view_month);
-                    let title_rect = ui.available_rect_before_wrap();
-                    let (rect, response) = ui.allocate_exact_size(title_rect.size(), Sense::drag());
+                    let drag_size = ui.available_size();
+                    let (rect, response) = ui.allocate_exact_size(drag_size, Sense::drag());
                     if response.dragged() {
                         ctx.send_viewport_cmd(ViewportCommand::StartDrag);
                     }
-                    ui.painter().text(
-                        rect.center(),
-                        Align2::CENTER_CENTER,
-                        month_text,
-                        FontId::proportional(17.0),
-                        self.theme().text_title,
-                    );
-
-                    let theme = self.theme();
-                    if ui
-                        .button(RichText::new(theme.icon).size(15.0))
-                        .on_hover_text(format!("主题：{}（点击切换）", theme.name))
-                        .clicked()
-                    {
-                        self.cycle_theme(ctx);
-                    }
-                    let pin_label = if self.pinned { "置顶✓" } else { "置顶" };
-                    if ui
-                        .button(RichText::new(pin_label).size(13.0))
-                        .on_hover_text("快捷键 Ctrl+Alt+T")
-                        .clicked()
-                    {
-                        self.set_pinned(ctx, !self.pinned);
-                    }
-                    if ui
-                        .button(RichText::new("—").size(15.0))
-                        .on_hover_text("最小化到托盘")
-                        .clicked()
-                    {
-                        self.hide_to_tray(ctx);
-                    }
-                    if ui
-                        .button(RichText::new("✕").size(15.0).color(self.theme().danger))
-                        .on_hover_text("关闭到托盘")
-                        .clicked()
-                    {
-                        self.hide_to_tray(ctx);
-                    }
-                    ui.add_space(10.0);
+                    let _ = rect;
                 });
+
+                let month_text = format!("{}年{}月", self.view_year, self.view_month);
+                ui.painter().text(
+                    titlebar_rect.center(),
+                    Align2::CENTER_CENTER,
+                    month_text,
+                    FontId::proportional(17.0),
+                    self.theme().text_title,
+                );
             });
     }
 
