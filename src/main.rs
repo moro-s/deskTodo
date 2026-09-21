@@ -12,6 +12,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex, OnceLock};
+use tray_icon::menu::{Menu, MenuEvent, MenuItem};
+use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
 const WEEKDAY_LABELS: [&str; 7] = ["一", "二", "三", "四", "五", "六", "日"];
 
@@ -23,6 +26,30 @@ struct TodoItem {
 
 type TodoStore = BTreeMap<String, Vec<TodoItem>>;
 
+#[derive(Clone, Copy)]
+enum TrayAction {
+    ToggleVisibility,
+    TogglePin,
+    Exit,
+}
+
+static TRAY_ACTIONS: OnceLock<Mutex<Vec<TrayAction>>> = OnceLock::new();
+
+fn push_tray_action(action: TrayAction) {
+    let queue = TRAY_ACTIONS.get_or_init(|| Mutex::new(Vec::new()));
+    if let Ok(mut queue) = queue.lock() {
+        queue.push(action);
+    }
+}
+
+fn take_tray_actions() -> Vec<TrayAction> {
+    TRAY_ACTIONS
+        .get()
+        .and_then(|queue| queue.lock().ok())
+        .map(|mut queue| std::mem::take(&mut *queue))
+        .unwrap_or_default()
+}
+
 struct App {
     todos: TodoStore,
     input: String,
@@ -30,6 +57,8 @@ struct App {
     view_month: u32,
     selected: NaiveDate,
     pinned: bool,
+    hidden: bool,
+    tray: Option<TrayIcon>,
     #[allow(dead_code)]
     hotkey_manager: GlobalHotKeyManager,
 }
@@ -65,9 +94,6 @@ fn save_todos(todos: &TodoStore) {
 }
 
 fn install_cjk_font(ctx: &egui::Context) {
-    if std::env::var_os("DESKTODO_NO_CJK").is_some() {
-        return;
-    }
     let candidates: &[&str] = if cfg!(target_os = "windows") {
         &[
             r"C:\Windows\Fonts\msyh.ttc",
@@ -112,6 +138,48 @@ fn install_cjk_font(ctx: &egui::Context) {
     }
 }
 
+fn calendar_icon_data() -> egui::IconData {
+    let size = 64u32;
+    let mut rgba = Vec::with_capacity((size * size * 4) as usize);
+    for y in 0..size {
+        for x in 0..size {
+            let ix = x as i32;
+            let iy = y as i32;
+            let mut color = [45, 92, 180, 255];
+            if (8..14).contains(&iy) && (12..52).contains(&ix) {
+                color = [235, 105, 95, 255];
+            }
+            if (3..9).contains(&iy) && ((18..24).contains(&ix) || (40..46).contains(&ix)) {
+                color = [235, 105, 95, 255];
+            }
+            for grid_y in 0..2 {
+                for grid_x in 0..3 {
+                    let cell_x = 12 + grid_x * 14;
+                    let cell_y = 22 + grid_y * 14;
+                    if (cell_x..cell_x + 8).contains(&ix) && (cell_y..cell_y + 8).contains(&iy) {
+                        color = [255, 255, 255, 255];
+                    }
+                }
+            }
+            rgba.extend_from_slice(&color);
+        }
+    }
+    egui::IconData {
+        rgba,
+        width: size,
+        height: size,
+    }
+}
+
+fn tray_icon_from(icon_data: &egui::IconData) -> Option<tray_icon::Icon> {
+    tray_icon::Icon::from_rgba(
+        icon_data.rgba.clone(),
+        icon_data.width,
+        icon_data.height,
+    )
+    .ok()
+}
+
 impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         install_cjk_font(&cc.egui_ctx);
@@ -121,6 +189,14 @@ impl App {
         if let Err(err) = hotkey_manager.register(hotkey) {
             eprintln!("注册热键失败: {err}");
         }
+
+        let ctx_hotkey = cc.egui_ctx.clone();
+        GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
+            if event.state() == HotKeyState::Pressed {
+                push_tray_action(TrayAction::TogglePin);
+            }
+            ctx_hotkey.request_repaint();
+        }));
         Self {
             todos: load_todos(),
             input: String::new(),
@@ -128,8 +204,66 @@ impl App {
             view_month: today.month(),
             selected: today,
             pinned: false,
+            hidden: false,
+            tray: None,
             hotkey_manager,
         }
+    }
+
+    fn init_tray(&mut self, ctx: &egui::Context) {
+        let menu = Menu::new();
+        let show_item = MenuItem::with_id("toggle", "显示 / 隐藏", true, None);
+        let pin_item = MenuItem::with_id("pin", "切换置顶（Ctrl+Alt+T）", true, None);
+        let quit_item = MenuItem::with_id("quit", "退出", true, None);
+        if let Err(err) = menu.append_items(&[&show_item, &pin_item, &quit_item]) {
+            eprintln!("构建托盘菜单失败: {err}");
+            return;
+        }
+
+        let icon_data = calendar_icon_data();
+        let Some(icon) = tray_icon_from(&icon_data) else {
+            eprintln!("创建托盘图标失败");
+            return;
+        };
+
+        let tray = match TrayIconBuilder::new()
+            .with_menu(Box::new(menu))
+            .with_tooltip("桌面日历待办")
+            .with_icon(icon)
+            .build()
+        {
+            Ok(tray) => tray,
+            Err(err) => {
+                eprintln!("创建托盘失败: {err}");
+                return;
+            }
+        };
+
+        let ctx_menu = ctx.clone();
+        MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
+            match event.id().as_ref() {
+                "toggle" => push_tray_action(TrayAction::ToggleVisibility),
+                "pin" => push_tray_action(TrayAction::TogglePin),
+                "quit" => push_tray_action(TrayAction::Exit),
+                _ => {}
+            }
+            ctx_menu.request_repaint();
+        }));
+
+        let ctx_tray = ctx.clone();
+        TrayIconEvent::set_event_handler(Some(move |event: TrayIconEvent| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                push_tray_action(TrayAction::ToggleVisibility);
+                ctx_tray.request_repaint();
+            }
+        }));
+
+        self.tray = Some(tray);
     }
 
     fn set_pinned(&mut self, ctx: &egui::Context, pinned: bool) {
@@ -140,6 +274,39 @@ impl App {
             WindowLevel::Normal
         };
         ctx.send_viewport_cmd(ViewportCommand::WindowLevel(level));
+    }
+
+    fn hide_to_tray(&mut self, ctx: &egui::Context) {
+        self.hidden = true;
+        ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+        ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+    }
+
+    fn show_from_tray(&mut self, ctx: &egui::Context) {
+        self.hidden = false;
+        ctx.send_viewport_cmd(ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(ViewportCommand::Focus);
+    }
+
+    fn toggle_visibility(&mut self, ctx: &egui::Context) {
+        if self.hidden {
+            self.show_from_tray(ctx);
+        } else {
+            self.hide_to_tray(ctx);
+        }
+    }
+
+    fn handle_tray_actions(&mut self, ctx: &egui::Context) {
+        for action in take_tray_actions() {
+            match action {
+                TrayAction::ToggleVisibility => self.toggle_visibility(ctx),
+                TrayAction::TogglePin => self.set_pinned(ctx, !self.pinned),
+                TrayAction::Exit => {
+                    save_todos(&self.todos);
+                    std::process::exit(0);
+                }
+            }
+        }
     }
 
     fn add_todo(&mut self) {
@@ -177,8 +344,7 @@ impl App {
 
                     let month_text = format!("{}年{}月", self.view_year, self.view_month);
                     let title_rect = ui.available_rect_before_wrap();
-                    let (rect, response) =
-                        ui.allocate_exact_size(title_rect.size(), Sense::drag());
+                    let (rect, response) = ui.allocate_exact_size(title_rect.size(), Sense::drag());
                     if response.dragged() {
                         ctx.send_viewport_cmd(ViewportCommand::StartDrag);
                     }
@@ -198,14 +364,19 @@ impl App {
                     {
                         self.set_pinned(ctx, !self.pinned);
                     }
-                    if ui.button("—").clicked() {
-                        ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
+                    if ui
+                        .button("—")
+                        .on_hover_text("最小化到托盘")
+                        .clicked()
+                    {
+                        self.hide_to_tray(ctx);
                     }
                     if ui
                         .button(RichText::new("✕").color(Color32::from_rgb(230, 90, 90)))
+                        .on_hover_text("关闭到托盘")
                         .clicked()
                     {
-                        ctx.send_viewport_cmd(ViewportCommand::Close);
+                        self.hide_to_tray(ctx);
                     }
                     ui.add_space(6.0);
                 });
@@ -254,8 +425,8 @@ impl App {
 
         ui.add_space(4.0);
 
-        let first = NaiveDate::from_ymd_opt(self.view_year, self.view_month, 1)
-            .expect("非法日期");
+        let first =
+            NaiveDate::from_ymd_opt(self.view_year, self.view_month, 1).expect("非法日期");
         let lead = first.weekday().num_days_from_monday() as usize;
         let today = Local::now().date_naive();
         let mut clicked: Option<NaiveDate> = None;
@@ -263,7 +434,8 @@ impl App {
         for row in 0..6 {
             ui.horizontal(|ui| {
                 for col in 0..7 {
-                    let date = first - chrono::Duration::days(lead as i64 - (row as i64 * 7 + col as i64));
+                    let date = first
+                        - chrono::Duration::days(lead as i64 - (row as i64 * 7 + col as i64));
                     let in_month = date.month() == self.view_month;
                     let is_today = date == today;
                     let is_selected = date == self.selected;
@@ -285,8 +457,7 @@ impl App {
                     } else {
                         Color32::from_rgb(32, 34, 39)
                     };
-                    ui.painter()
-                        .rect_filled(rect, CornerRadius::same(6), bg);
+                    ui.painter().rect_filled(rect, CornerRadius::same(6), bg);
 
                     let day_color = if is_today {
                         Color32::from_rgb(240, 200, 90)
@@ -426,10 +597,7 @@ impl App {
                         });
                     }
                     ui.horizontal(|ui| {
-                        if ui
-                            .button(RichText::new("清除已完成").small())
-                            .clicked()
-                        {
+                        if ui.button(RichText::new("清除已完成").small()).clicked() {
                             clear_done = true;
                         }
                     });
@@ -455,14 +623,20 @@ fn truncate_chars(text: &str, max_chars: usize) -> String {
 }
 
 impl eframe::App for App {
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if self.tray.is_none() {
+            self.init_tray(ctx);
+        }
+
+        self.handle_tray_actions(ctx);
+
+        if ctx.input(|i| i.viewport().close_requested()) {
+            self.hide_to_tray(ctx);
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
-
-        if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {
-            if event.state() == HotKeyState::Pressed {
-                self.set_pinned(&ctx, !self.pinned);
-            }
-        }
 
         self.draw_titlebar(&ctx, ui);
 
@@ -495,7 +669,8 @@ fn main() -> eframe::Result<()> {
             .with_decorations(false)
             .with_resizable(false)
             .with_inner_size([452.0, 768.0])
-            .with_title("桌面日历待办"),
+            .with_title("桌面日历待办")
+            .with_icon(Arc::new(calendar_icon_data())),
         ..Default::default()
     };
     eframe::run_native(
