@@ -11,6 +11,7 @@ mod storage;
 mod theme;
 mod tray;
 mod ui;
+mod win;
 
 use eframe::egui;
 use std::sync::Arc;
@@ -22,7 +23,7 @@ fn main() -> eframe::Result<()> {
             .with_resizable(true)
             .with_inner_size([640.0, 952.0])
             .with_min_inner_size([560.0, 760.0])
-            .with_title("桌面日历待办")
+            .with_title(win::WINDOW_TITLE)
             .with_icon(Arc::new(icon::calendar_icon_data())),
         ..Default::default()
     };

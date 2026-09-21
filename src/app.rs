@@ -30,6 +30,8 @@ pub(crate) struct App {
     pub(crate) remind_second: i32,
     pub(crate) show_settings: bool,
     pub(crate) font_scale: f32,
+    pub(crate) opacity: f32,
+    applied_opacity: Option<f32>,
     pub(crate) hotkey_spec: HotkeySpec,
     pub(crate) recording_hotkey: bool,
     pub(crate) hotkey_status: Option<String>,
@@ -82,6 +84,8 @@ impl App {
             remind_second: 0,
             show_settings: false,
             font_scale: config.font_scale,
+            opacity: config.opacity.clamp(0.3, 1.0),
+            applied_opacity: None,
             hotkey_spec: config.hotkey.clone(),
             recording_hotkey: false,
             hotkey_status: None,
@@ -104,6 +108,7 @@ impl App {
         save_config(&Config {
             theme: self.theme_index,
             font_scale: self.font_scale,
+            opacity: self.opacity,
             hotkey: self.hotkey_spec.clone(),
             data_dir: self.data_dir_override.clone(),
         });
@@ -134,6 +139,19 @@ impl App {
         self.font_scale = scale;
         ctx.set_zoom_factor(scale);
         self.persist_config();
+    }
+
+    pub(crate) fn set_opacity(&mut self, opacity: f32) {
+        self.opacity = opacity.clamp(0.3, 1.0);
+        self.persist_config();
+    }
+
+    fn sync_window_opacity(&mut self) {
+        if self.applied_opacity != Some(self.opacity)
+            && crate::win::set_window_opacity(self.opacity)
+        {
+            self.applied_opacity = Some(self.opacity);
+        }
     }
 
     pub(crate) fn apply_hotkey(&mut self, spec: HotkeySpec) {
@@ -313,6 +331,7 @@ impl eframe::App for App {
 
         self.handle_tray_actions(ctx);
         self.check_reminders(ctx);
+        self.sync_window_opacity();
 
         if ctx.input(|i| i.viewport().close_requested()) {
             self.hide_to_tray(ctx);

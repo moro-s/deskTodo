@@ -68,6 +68,8 @@ pub(crate) struct Config {
     pub(crate) theme: usize,
     #[serde(default = "default_font_scale")]
     pub(crate) font_scale: f32,
+    #[serde(default = "default_opacity")]
+    pub(crate) opacity: f32,
     #[serde(default)]
     pub(crate) hotkey: HotkeySpec,
     #[serde(default)]
@@ -75,6 +77,10 @@ pub(crate) struct Config {
 }
 
 fn default_font_scale() -> f32 {
+    1.0
+}
+
+fn default_opacity() -> f32 {
     1.0
 }
 

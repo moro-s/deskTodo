@@ -79,6 +79,7 @@ pub(crate) fn load_config() -> Config {
     Config {
         theme: 0,
         font_scale: 1.0,
+        opacity: 1.0,
         hotkey: Default::default(),
         data_dir: None,
     }

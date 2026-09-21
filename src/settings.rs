@@ -7,6 +7,15 @@ use eframe::egui::{self, CornerRadius, Key, RichText, Stroke};
 
 const FONT_SCALES: [(&str, f32); 4] = [("小", 0.85), ("标准", 1.0), ("大", 1.15), ("特大", 1.3)];
 
+const OPACITY_STEPS: [(&str, f32); 6] = [
+    ("100%", 1.0),
+    ("90%", 0.9),
+    ("80%", 0.8),
+    ("70%", 0.7),
+    ("60%", 0.6),
+    ("50%", 0.5),
+];
+
 fn card<R>(ui: &mut egui::Ui, title: &str, theme: &Theme, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
     egui::Frame::NONE
         .fill(theme.card)
@@ -56,6 +65,8 @@ impl App {
                     self.draw_theme_section(&ctx, ui);
                     ui.add_space(10.0);
                     self.draw_font_section(&ctx, ui);
+                    ui.add_space(10.0);
+                    self.draw_opacity_section(ui);
                     ui.add_space(10.0);
                     self.draw_storage_section(ui);
                     ui.add_space(6.0);
@@ -192,6 +203,30 @@ impl App {
         });
         if let Some(scale) = picked {
             self.set_font_scale(ctx, scale);
+        }
+    }
+
+    fn draw_opacity_section(&mut self, ui: &mut egui::Ui) {
+        let theme = self.theme();
+        let mut picked: Option<f32> = None;
+        card(ui, "透明度调节", theme, |ui| {
+            ui.label(
+                RichText::new("调整窗口整体透明度，实时生效")
+                    .size(13.5)
+                    .color(theme.text_secondary),
+            );
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                for (name, value) in OPACITY_STEPS {
+                    let active = (self.opacity - value).abs() < 0.005;
+                    if section_button(ui, name.to_string(), active, theme) {
+                        picked = Some(value);
+                    }
+                }
+            });
+        });
+        if let Some(value) = picked {
+            self.set_opacity(value);
         }
     }
 
