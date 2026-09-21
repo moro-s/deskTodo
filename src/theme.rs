@@ -96,14 +96,52 @@ pub(crate) const THEMES: [Theme; 3] = [
     },
 ];
 
-pub(crate) fn apply_style(ctx: &egui::Context) {
+pub(crate) fn apply_style(ctx: &egui::Context, theme: &Theme) {
     ctx.all_styles_mut(|style| {
-        let radius = CornerRadius::same(7);
+        let radius = CornerRadius::same(6);
         style.visuals.widgets.inactive.corner_radius = radius;
         style.visuals.widgets.hovered.corner_radius = radius;
         style.visuals.widgets.active.corner_radius = radius;
         style.visuals.widgets.open.corner_radius = radius;
+        style.visuals.window_corner_radius = CornerRadius::same(8);
+
+        if theme.dark {
+            style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(60, 60, 60);
+            style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(76, 76, 76);
+            style.visuals.widgets.active.bg_fill = Color32::from_rgb(80, 80, 80);
+            style.visuals.widgets.inactive.fg_stroke =
+                egui::Stroke::new(1.0, Color32::from_rgb(224, 224, 224));
+            style.visuals.widgets.hovered.fg_stroke =
+                egui::Stroke::new(1.0, Color32::from_rgb(230, 230, 230));
+            style.visuals.widgets.active.fg_stroke =
+                egui::Stroke::new(1.0, Color32::from_rgb(235, 235, 235));
+            style.visuals.widgets.noninteractive.bg_stroke =
+                egui::Stroke::new(0.0, Color32::TRANSPARENT);
+            style.visuals.widgets.inactive.bg_stroke =
+                egui::Stroke::new(0.0, Color32::TRANSPARENT);
+            style.visuals.selection.bg_fill =
+                Color32::from_rgba_unmultiplied(128, 128, 128, 110);
+            style.visuals.selection.stroke =
+                egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(128, 128, 128, 110));
+        } else {
+            style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(238, 238, 238);
+            style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(225, 225, 225);
+            style.visuals.widgets.active.bg_fill = Color32::from_rgb(215, 215, 215);
+            style.visuals.widgets.inactive.fg_stroke =
+                egui::Stroke::new(1.0, Color32::from_rgb(60, 60, 60));
+            style.visuals.widgets.hovered.fg_stroke =
+                egui::Stroke::new(1.0, Color32::from_rgb(45, 45, 45));
+            style.visuals.widgets.active.fg_stroke =
+                egui::Stroke::new(1.0, Color32::from_rgb(35, 35, 35));
+            style.visuals.widgets.inactive.bg_stroke =
+                egui::Stroke::new(0.0, Color32::TRANSPARENT);
+            style.visuals.selection.bg_fill = Color32::from_rgba_unmultiplied(0, 0, 0, 26);
+            style.visuals.selection.stroke =
+                egui::Stroke::new(1.0, Color32::from_rgba_unmultiplied(0, 0, 0, 40));
+        }
+
         style.spacing.button_padding = Vec2::new(14.0, 9.0);
+        style.spacing.interact_size.y = 28.0;
     });
 }
 

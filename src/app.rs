@@ -49,7 +49,7 @@ impl App {
             egui::Visuals::light()
         };
         cc.egui_ctx.set_visuals(visuals);
-        apply_style(&cc.egui_ctx);
+        apply_style(&cc.egui_ctx, &THEMES[theme_index]);
         Self {
             todos: load_todos(),
             input: String::new(),
@@ -85,7 +85,7 @@ impl App {
             egui::Visuals::light()
         };
         ctx.set_visuals(visuals);
-        apply_style(ctx);
+        apply_style(ctx, self.theme());
         save_config(&Config {
             theme: self.theme_index,
         });

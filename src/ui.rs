@@ -46,6 +46,26 @@ fn move_todo(todos: &mut Vec<TodoItem>, from: usize, insert_at: usize) -> bool {
     true
 }
 
+fn anim_towards(ui: &egui::Ui, id: egui::Id, target: f32, speed: f32) -> f32 {
+    let dt = ui.input(|i| i.unstable_dt).min(0.1);
+    let current = ui.memory(|m| m.data.get_temp::<f32>(id).unwrap_or(0.0));
+    let new = current + (target - current) * (1.0 - (1.0 - speed).powf(dt * 60.0));
+    ui.memory_mut(|m| m.data.insert_temp(id, new));
+    if (new - target).abs() > 0.01 {
+        ui.ctx().request_repaint();
+    }
+    new
+}
+
+fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
+    let t = t.clamp(0.0, 1.0);
+    Color32::from_rgb(
+        (a.r() as f32 + (b.r() as f32 - a.r() as f32) * t) as u8,
+        (a.g() as f32 + (b.g() as f32 - a.g() as f32) * t) as u8,
+        (a.b() as f32 + (b.b() as f32 - a.b() as f32) * t) as u8,
+    )
+}
+
 impl App {
     pub(crate) fn draw_titlebar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         egui::Panel::top("titlebar")
@@ -211,6 +231,7 @@ impl App {
                         ui.allocate_exact_size(Vec2::new(cell_w, cell_h), Sense::click());
                     let was_clicked = response.clicked();
                     let is_hovered = response.hovered();
+                    let hover_id = response.id.with("cell_hover");
                     response.on_hover_cursor(egui::CursorIcon::PointingHand);
                     if was_clicked {
                         clicked = Some(date);
@@ -225,11 +246,9 @@ impl App {
                     } else {
                         theme.cell_out_month
                     };
-                    let bg = if is_hovered && !is_selected {
-                        lighten(bg)
-                    } else {
-                        bg
-                    };
+                    let hover_t =
+                        anim_towards(ui, hover_id, if is_hovered && !is_selected { 1.0 } else { 0.0 }, 0.18);
+                    let bg = lerp_color(bg, lighten(bg), hover_t);
                     let radius = CornerRadius::same(8);
                     ui.painter().rect_filled(rect, radius, bg);
                     if is_selected || is_today {
