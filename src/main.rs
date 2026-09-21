@@ -1,15 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::{Datelike, Local, NaiveDate, Timelike};
 use eframe::egui;
 use eframe::egui::{
-    Align2, Color32, CornerRadius, FontId, Key, Pos2, RichText, Sense, Vec2, ViewportCommand,
-    WindowLevel,
+    Align2, Color32, CornerRadius, DragValue, FontId, Key, Pos2, RichText, Sense, Vec2,
+    ViewportCommand, WindowLevel,
 };
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -22,6 +22,8 @@ const WEEKDAY_LABELS: [&str; 7] = ["一", "二", "三", "四", "五", "六", "�
 struct TodoItem {
     text: String,
     done: bool,
+    #[serde(default)]
+    remind_at: Option<String>,
 }
 
 type TodoStore = BTreeMap<String, Vec<TodoItem>>;
@@ -58,6 +60,11 @@ struct App {
     selected: NaiveDate,
     pinned: bool,
     hidden: bool,
+    remind_enabled: bool,
+    remind_hour: i32,
+    remind_minute: i32,
+    triggered_reminders: HashSet<String>,
+    active_reminder: Option<String>,
     tray: Option<TrayIcon>,
     #[allow(dead_code)]
     hotkey_manager: GlobalHotKeyManager,
@@ -205,6 +212,11 @@ impl App {
             selected: today,
             pinned: false,
             hidden: false,
+            remind_enabled: false,
+            remind_hour: 9,
+            remind_minute: 0,
+            triggered_reminders: HashSet::new(),
+            active_reminder: None,
             tray: None,
             hotkey_manager,
         }
@@ -309,16 +321,89 @@ impl App {
         }
     }
 
+    fn check_reminders(&mut self, ctx: &egui::Context) {
+        let now = Local::now();
+        let today = now.date_naive();
+        let now_secs = now.time().num_seconds_from_midnight();
+        let key = date_key(today);
+
+        let mut due: Vec<(String, String)> = Vec::new();
+        if let Some(items) = self.todos.get(&key) {
+            for item in items {
+                if item.done {
+                    continue;
+                }
+                let Some(remind_text) = &item.remind_at else {
+                    continue;
+                };
+                let Some(remind_secs) = parse_hhmm(remind_text) else {
+                    continue;
+                };
+                let trigger_id = format!("{key}|{}|{remind_text}", item.text);
+                if self.triggered_reminders.contains(&trigger_id) {
+                    continue;
+                }
+                if now_secs >= remind_secs {
+                    due.push((trigger_id, format!("{}（{}）", item.text, remind_text)));
+                }
+            }
+        }
+        for (trigger_id, reminder) in due {
+            self.triggered_reminders.insert(trigger_id);
+            self.active_reminder = Some(reminder);
+            self.show_from_tray(ctx);
+            ctx.send_viewport_cmd(ViewportCommand::RequestUserAttention(
+                egui::UserAttentionType::Critical,
+            ));
+        }
+    }
+
+    fn next_repaint_delay(&self) -> std::time::Duration {
+        let now = Local::now();
+        let key = date_key(now.date_naive());
+        let now_secs = now.time().num_seconds_from_midnight();
+        let mut next = 30u64;
+        if let Some(items) = self.todos.get(&key) {
+            for item in items {
+                if item.done {
+                    continue;
+                }
+                let Some(remind_text) = &item.remind_at else {
+                    continue;
+                };
+                let Some(remind_secs) = parse_hhmm(remind_text) else {
+                    continue;
+                };
+                let trigger_id = format!("{key}|{}|{remind_text}", item.text);
+                if self.triggered_reminders.contains(&trigger_id) {
+                    continue;
+                }
+                let remain = remind_secs.saturating_sub(now_secs);
+                next = next.min(remain.max(1) as u64);
+            }
+        }
+        std::time::Duration::from_secs(next)
+    }
+
     fn add_todo(&mut self) {
         let text = self.input.trim().to_string();
         if text.is_empty() {
             return;
         }
+        let remind_at = if self.remind_enabled {
+            Some(format!(
+                "{:02}:{:02}",
+                self.remind_hour, self.remind_minute
+            ))
+        } else {
+            None
+        };
         let key = date_key(self.selected);
-        self.todos
-            .entry(key)
-            .or_default()
-            .push(TodoItem { text, done: false });
+        self.todos.entry(key).or_default().push(TodoItem {
+            text,
+            done: false,
+            remind_at,
+        });
         self.input.clear();
         save_todos(&self.todos);
     }
@@ -477,7 +562,13 @@ impl App {
                     if let Some(items) = todos {
                         let mut y = rect.left_top().y + 22.0;
                         for item in items.iter().take(2) {
-                            let prefix = if item.done { "✓ " } else { "• " };
+                            let prefix = if item.done {
+                                "✓ "
+                            } else if item.remind_at.is_some() {
+                                "⏰ "
+                            } else {
+                                "• "
+                            };
                             let text = format!("{}{}", prefix, truncate_chars(&item.text, 8));
                             let color = if item.done {
                                 Color32::from_gray(110)
@@ -549,6 +640,21 @@ impl App {
             }
         });
 
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut self.remind_enabled, "⏰ 到点提醒");
+            if self.remind_enabled {
+                ui.add_space(6.0);
+                ui.add(DragValue::new(&mut self.remind_hour).range(0..=23).suffix("时"));
+                ui.label(":");
+                ui.add(DragValue::new(&mut self.remind_minute).range(0..=59).suffix("分"));
+                if ui.button("现在").clicked() {
+                    let now = Local::now();
+                    self.remind_hour = now.hour() as i32;
+                    self.remind_minute = now.minute() as i32;
+                }
+            }
+        });
+
         ui.add_space(6.0);
         egui::ScrollArea::vertical()
             .max_height(150.0)
@@ -587,6 +693,13 @@ impl App {
                                 text = text.strikethrough();
                             }
                             ui.label(text);
+                            if let Some(remind_at) = &todos[index].remind_at {
+                                ui.label(
+                                    RichText::new(format!("⏰ {remind_at}"))
+                                        .small()
+                                        .color(Color32::from_rgb(240, 200, 90)),
+                                );
+                            }
                             if ui
                                 .button(RichText::new("✕").small().color(Color32::from_gray(140)))
                                 .clicked()
@@ -622,6 +735,17 @@ fn truncate_chars(text: &str, max_chars: usize) -> String {
     }
 }
 
+fn parse_hhmm(value: &str) -> Option<u32> {
+    let (hour, minute) = value.split_once(':')?;
+    let hour: u32 = hour.parse().ok()?;
+    let minute: u32 = minute.parse().ok()?;
+    if hour < 24 && minute < 60 {
+        Some(hour * 3600 + minute * 60)
+    } else {
+        None
+    }
+}
+
 impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.tray.is_none() {
@@ -629,16 +753,40 @@ impl eframe::App for App {
         }
 
         self.handle_tray_actions(ctx);
+        self.check_reminders(ctx);
 
         if ctx.input(|i| i.viewport().close_requested()) {
             self.hide_to_tray(ctx);
         }
+
+        let delay = self.next_repaint_delay();
+        ctx.request_repaint_after(delay);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
 
         self.draw_titlebar(&ctx, ui);
+
+        if let Some(reminder) = self.active_reminder.clone() {
+            egui::Frame::NONE
+                .fill(Color32::from_rgb(180, 60, 60))
+                .corner_radius(CornerRadius::same(6))
+                .inner_margin(8.0)
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!("⏰ 待办提醒：{reminder}"))
+                                .color(Color32::WHITE)
+                                .strong(),
+                        );
+                        if ui.button(RichText::new("知道了").color(Color32::WHITE)).clicked() {
+                            self.active_reminder = None;
+                        }
+                    });
+                });
+            ui.add_space(4.0);
+        }
 
         egui::CentralPanel::default()
             .frame(
@@ -658,8 +806,6 @@ impl eframe::App for App {
                         self.draw_editor(ui);
                     });
             });
-
-        ctx.request_repaint_after(std::time::Duration::from_secs(30));
     }
 }
 
