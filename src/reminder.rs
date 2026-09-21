@@ -8,12 +8,13 @@ pub(crate) struct DueReminder {
     pub(crate) message: String,
 }
 
-pub(crate) fn parse_hhmm(value: &str) -> Option<u32> {
-    let (hour, minute) = value.split_once(':')?;
-    let hour: u32 = hour.parse().ok()?;
-    let minute: u32 = minute.parse().ok()?;
-    if hour < 24 && minute < 60 {
-        Some(hour * 3600 + minute * 60)
+pub(crate) fn parse_hms(value: &str) -> Option<u32> {
+    let mut parts = value.split(':');
+    let hour: u32 = parts.next()?.parse().ok()?;
+    let minute: u32 = parts.next()?.parse().ok()?;
+    let second: u32 = parts.next().map(|s| s.parse().ok()).unwrap_or(Some(0))?;
+    if parts.next().is_none() && hour < 24 && minute < 60 && second < 60 {
+        Some(hour * 3600 + minute * 60 + second)
     } else {
         None
     }
@@ -35,7 +36,7 @@ pub(crate) fn due_reminders(
             let Some(remind_text) = &item.remind_at else {
                 continue;
             };
-            let Some(remind_secs) = parse_hhmm(remind_text) else {
+            let Some(remind_secs) = parse_hms(remind_text) else {
                 continue;
             };
             let trigger_id = format!("{key}|{}|{remind_text}", item.text);
@@ -69,7 +70,7 @@ pub(crate) fn next_delay(
             let Some(remind_text) = &item.remind_at else {
                 continue;
             };
-            let Some(remind_secs) = parse_hhmm(remind_text) else {
+            let Some(remind_secs) = parse_hms(remind_text) else {
                 continue;
             };
             let trigger_id = format!("{key}|{}|{remind_text}", item.text);
@@ -81,4 +82,31 @@ pub(crate) fn next_delay(
         }
     }
     Duration::from_secs(next)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_hms;
+
+    #[test]
+    fn parse_hms_accepts_hhmm_legacy_format() {
+        assert_eq!(parse_hms("09:05"), Some(9 * 3600 + 5 * 60));
+        assert_eq!(parse_hms("00:00"), Some(0));
+    }
+
+    #[test]
+    fn parse_hms_accepts_hhmmss_format() {
+        assert_eq!(parse_hms("09:05:30"), Some(9 * 3600 + 5 * 60 + 30));
+        assert_eq!(parse_hms("23:59:59"), Some(23 * 3600 + 59 * 60 + 59));
+    }
+
+    #[test]
+    fn parse_hms_rejects_invalid_values() {
+        assert_eq!(parse_hms("24:00:00"), None);
+        assert_eq!(parse_hms("12:60:00"), None);
+        assert_eq!(parse_hms("12:00:60"), None);
+        assert_eq!(parse_hms("12:00:00:00"), None);
+        assert_eq!(parse_hms("abc"), None);
+        assert_eq!(parse_hms(""), None);
+    }
 }

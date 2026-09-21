@@ -383,15 +383,44 @@ impl App {
                             let now = Local::now();
                             self.remind_hour = now.hour() as i32;
                             self.remind_minute = now.minute() as i32;
+                            self.remind_second = now.second() as i32;
                         }
-                        ui.add_sized(
-                            [110.0, 20.0],
-                            egui::Slider::new(&mut self.remind_minute, 0..=59).suffix("分"),
-                        );
-                        ui.add_sized(
-                            [110.0, 20.0],
-                            egui::Slider::new(&mut self.remind_hour, 0..=23).suffix("时"),
-                        );
+                        egui::ComboBox::from_id_salt("remind_second")
+                            .width(64.0)
+                            .selected_text(format!("{:02} 秒", self.remind_second))
+                            .show_ui(ui, |ui| {
+                                for value in 0..60 {
+                                    ui.selectable_value(
+                                        &mut self.remind_second,
+                                        value,
+                                        format!("{value:02}"),
+                                    );
+                                }
+                            });
+                        egui::ComboBox::from_id_salt("remind_minute")
+                            .width(64.0)
+                            .selected_text(format!("{:02} 分", self.remind_minute))
+                            .show_ui(ui, |ui| {
+                                for value in 0..60 {
+                                    ui.selectable_value(
+                                        &mut self.remind_minute,
+                                        value,
+                                        format!("{value:02}"),
+                                    );
+                                }
+                            });
+                        egui::ComboBox::from_id_salt("remind_hour")
+                            .width(64.0)
+                            .selected_text(format!("{:02} 时", self.remind_hour))
+                            .show_ui(ui, |ui| {
+                                for value in 0..24 {
+                                    ui.selectable_value(
+                                        &mut self.remind_hour,
+                                        value,
+                                        format!("{value:02}"),
+                                    );
+                                }
+                            });
                     }
                     ui.checkbox(&mut self.remind_enabled, "⏰ 到点提醒");
                 },

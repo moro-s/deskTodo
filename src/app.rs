@@ -27,6 +27,7 @@ pub(crate) struct App {
     pub(crate) remind_enabled: bool,
     pub(crate) remind_hour: i32,
     pub(crate) remind_minute: i32,
+    pub(crate) remind_second: i32,
     pub(crate) show_settings: bool,
     pub(crate) font_scale: f32,
     pub(crate) hotkey_spec: HotkeySpec,
@@ -78,6 +79,7 @@ impl App {
             remind_enabled: false,
             remind_hour: 9,
             remind_minute: 0,
+            remind_second: 0,
             show_settings: false,
             font_scale: config.font_scale,
             hotkey_spec: config.hotkey.clone(),
@@ -256,8 +258,8 @@ impl App {
         }
         let remind_at = if self.remind_enabled {
             Some(format!(
-                "{:02}:{:02}",
-                self.remind_hour, self.remind_minute
+                "{:02}:{:02}:{:02}",
+                self.remind_hour, self.remind_minute, self.remind_second
             ))
         } else {
             None
