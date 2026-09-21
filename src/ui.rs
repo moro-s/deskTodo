@@ -4,7 +4,7 @@ use crate::storage::save_todos;
 use crate::theme::lighten;
 use chrono::{Datelike, Local, NaiveDate, Timelike};
 use eframe::egui::{
-    self, Align2, Color32, CornerRadius, DragValue, FontId, Key, Pos2, RichText, Sense, Vec2,
+    self, Align2, Color32, CornerRadius, FontId, Key, Pos2, RichText, Sense, Vec2,
     ViewportCommand,
 };
 
@@ -339,16 +339,13 @@ impl App {
                             self.remind_hour = now.hour() as i32;
                             self.remind_minute = now.minute() as i32;
                         }
-                        ui.add(
-                            DragValue::new(&mut self.remind_minute)
-                                .range(0..=59)
-                                .suffix("分"),
+                        ui.add_sized(
+                            [110.0, 20.0],
+                            egui::Slider::new(&mut self.remind_minute, 0..=59).suffix("分"),
                         );
-                        ui.label(":");
-                        ui.add(
-                            DragValue::new(&mut self.remind_hour)
-                                .range(0..=23)
-                                .suffix("时"),
+                        ui.add_sized(
+                            [110.0, 20.0],
+                            egui::Slider::new(&mut self.remind_hour, 0..=23).suffix("时"),
                         );
                     }
                     ui.checkbox(&mut self.remind_enabled, "⏰ 到点提醒");
