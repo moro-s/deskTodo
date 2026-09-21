@@ -224,6 +224,17 @@ fn save_todos(todos: &TodoStore) {
     }
 }
 
+fn apply_style(ctx: &egui::Context) {
+    ctx.all_styles_mut(|style| {
+        let radius = CornerRadius::same(7);
+        style.visuals.widgets.inactive.corner_radius = radius;
+        style.visuals.widgets.hovered.corner_radius = radius;
+        style.visuals.widgets.active.corner_radius = radius;
+        style.visuals.widgets.open.corner_radius = radius;
+        style.spacing.button_padding = Vec2::new(10.0, 6.0);
+    });
+}
+
 fn install_cjk_font(ctx: &egui::Context) {
     let candidates: &[&str] = if cfg!(target_os = "windows") {
         &[
@@ -336,6 +347,7 @@ impl App {
             egui::Visuals::light()
         };
         cc.egui_ctx.set_visuals(visuals);
+        apply_style(&cc.egui_ctx);
         Self {
             todos: load_todos(),
             input: String::new(),
@@ -367,6 +379,7 @@ impl App {
             egui::Visuals::light()
         };
         ctx.set_visuals(visuals);
+        apply_style(ctx);
         save_config(&Config {
             theme: self.theme_index,
         });
@@ -562,15 +575,28 @@ impl App {
         egui::Panel::top("titlebar")
             .frame(egui::Frame::NONE.fill(self.theme().titlebar))
             .show(ui, |ui| {
+                ui.set_min_height(46.0);
                 ui.horizontal_centered(|ui| {
-                    ui.add_space(6.0);
-                    if ui.button("‹").clicked() {
+                    ui.add_space(10.0);
+                    if ui
+                        .button(RichText::new("‹").size(17.0))
+                        .on_hover_text("上个月")
+                        .clicked()
+                    {
                         self.shift_month(-1);
                     }
-                    if ui.button("›").clicked() {
+                    if ui
+                        .button(RichText::new("›").size(17.0))
+                        .on_hover_text("下个月")
+                        .clicked()
+                    {
                         self.shift_month(1);
                     }
-                    if ui.button("今天").clicked() {
+                    if ui
+                        .button(RichText::new("今天").size(14.0))
+                        .on_hover_text("回到今天")
+                        .clicked()
+                    {
                         let today = Local::now().date_naive();
                         self.view_year = today.year();
                         self.view_month = today.month();
@@ -587,44 +613,41 @@ impl App {
                         rect.center(),
                         Align2::CENTER_CENTER,
                         month_text,
-                        FontId::proportional(15.0),
+                        FontId::proportional(17.0),
                         self.theme().text_title,
                     );
 
                     let theme = self.theme();
                     if ui
-                        .button(RichText::new(theme.icon).small())
-                        .on_hover_text(format!(
-                            "主题：{}（点击切换）",
-                            theme.name
-                        ))
+                        .button(RichText::new(theme.icon).size(15.0))
+                        .on_hover_text(format!("主题：{}（点击切换）", theme.name))
                         .clicked()
                     {
                         self.cycle_theme(ctx);
                     }
                     let pin_label = if self.pinned { "置顶✓" } else { "置顶" };
                     if ui
-                        .button(RichText::new(pin_label).small())
+                        .button(RichText::new(pin_label).size(13.0))
                         .on_hover_text("快捷键 Ctrl+Alt+T")
                         .clicked()
                     {
                         self.set_pinned(ctx, !self.pinned);
                     }
                     if ui
-                        .button("—")
+                        .button(RichText::new("—").size(15.0))
                         .on_hover_text("最小化到托盘")
                         .clicked()
                     {
                         self.hide_to_tray(ctx);
                     }
                     if ui
-                        .button(RichText::new("✕").color(self.theme().danger))
+                        .button(RichText::new("✕").size(15.0).color(self.theme().danger))
                         .on_hover_text("关闭到托盘")
                         .clicked()
                     {
                         self.hide_to_tray(ctx);
                     }
-                    ui.add_space(6.0);
+                    ui.add_space(10.0);
                 });
             });
     }
@@ -646,7 +669,8 @@ impl App {
     fn draw_calendar(&mut self, ui: &mut egui::Ui) {
         let spacing = ui.spacing().item_spacing.x;
         let cell_w = (ui.available_width() - spacing * 6.0) / 7.0;
-        let cell_h = 74.0;
+        let cell_h = 82.0;
+        let theme = self.theme();
 
         egui::Grid::new("weekday_header")
             .num_columns(7)
@@ -654,14 +678,16 @@ impl App {
             .show(ui, |ui| {
                 for (idx, label) in WEEKDAY_LABELS.iter().enumerate() {
                     let color = if idx >= 5 {
-                        self.theme().weekend
+                        theme.weekend
                     } else {
-                        self.theme().text_muted
+                        theme.text_muted
                     };
                     ui.add_sized(
-                        [cell_w, 14.0],
+                        [cell_w, 18.0],
                         egui::Label::new(
-                            RichText::new(*label).color(color).font(FontId::proportional(12.0)),
+                            RichText::new(*label)
+                                .color(color)
+                                .font(FontId::proportional(13.0)),
                         )
                         .selectable(false)
                         .halign(egui::Align::Center),
@@ -690,39 +716,60 @@ impl App {
 
                     let (rect, response) =
                         ui.allocate_exact_size(Vec2::new(cell_w, cell_h), Sense::click());
-                    if response.clicked() {
+                    let was_clicked = response.clicked();
+                    let is_hovered = response.hovered();
+                    response.on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if was_clicked {
                         clicked = Some(date);
                     }
 
                     let bg = if is_selected {
-                        self.theme().cell_selected
+                        theme.cell_selected
                     } else if is_today {
-                        self.theme().cell_today
+                        theme.cell_today
                     } else if in_month {
-                        self.theme().cell_in_month
+                        theme.cell_in_month
                     } else {
-                        self.theme().cell_out_month
+                        theme.cell_out_month
                     };
-                    ui.painter().rect_filled(rect, CornerRadius::same(6), bg);
+                    let bg = if is_hovered && !is_selected {
+                        lighten(bg) // hover 提亮一档
+                    } else {
+                        bg
+                    };
+                    let radius = CornerRadius::same(8);
+                    ui.painter().rect_filled(rect, radius, bg);
+                    if is_selected || is_today {
+                        ui.painter().rect_stroke(
+                            rect,
+                            radius,
+                            egui::Stroke::new(if is_selected { 1.8 } else { 1.0 }, theme.accent),
+                            egui::StrokeKind::Inside,
+                        );
+                    }
 
                     let day_color = if is_today {
-                        self.theme().accent
+                        theme.accent
                     } else if in_month {
-                        self.theme().text_primary
+                        theme.text_primary
                     } else {
-                        self.theme().text_dim
+                        theme.text_dim
                     };
-                    ui.painter().text(
-                        rect.left_top() + Vec2::new(7.0, 5.0),
+                    let painter = ui.painter().with_clip_rect(rect.shrink(1.0));
+                    painter.text(
+                        rect.left_top() + Vec2::new(8.0, 5.0),
                         Align2::LEFT_TOP,
                         date.day().to_string(),
-                        FontId::proportional(12.0),
+                        FontId::proportional(13.5),
                         day_color,
                     );
 
                     if let Some(items) = todos {
-                        let mut y = rect.left_top().y + 22.0;
-                        for item in items.iter().take(2) {
+                        let mut y = rect.left_top().y + 26.0;
+                        for item in items.iter().take(3) {
+                            if y + 14.0 > rect.bottom() - 3.0 {
+                                break;
+                            }
                             let prefix = if item.done {
                                 "✓ "
                             } else if item.remind_at.is_some() {
@@ -730,28 +777,39 @@ impl App {
                             } else {
                                 "• "
                             };
-                            let text = format!("{}{}", prefix, truncate_chars(&item.text, 8));
+                            let text = format!("{}{}", prefix, truncate_chars(&item.text, 10));
                             let color = if item.done {
-                                self.theme().text_done
+                                theme.text_done
                             } else {
-                                self.theme().text_secondary
+                                theme.text_secondary
                             };
-                            ui.painter().text(
-                                Pos2::new(rect.left() + 7.0, y),
+                            painter.text(
+                                Pos2::new(rect.left() + 8.0, y),
                                 Align2::LEFT_TOP,
                                 text,
-                                FontId::proportional(10.0),
+                                FontId::proportional(11.0),
                                 color,
                             );
-                            y += 13.0;
+                            y += 15.0;
                         }
-                        if items.len() > 2 {
-                            ui.painter().text(
-                                Pos2::new(rect.right() - 7.0, rect.bottom() - 5.0),
+                        if items.len() > 3 {
+                            let badge_text = format!("+{}", items.len() - 3);
+                            let badge_pos = Pos2::new(rect.right() - 6.0, rect.bottom() - 5.0);
+                            let badge_rect = egui::Rect::from_center_size(
+                                badge_pos,
+                                Vec2::new(24.0, 14.0),
+                            );
+                            ui.painter().rect_filled(
+                                badge_rect,
+                                CornerRadius::same(6),
+                                theme.accent,
+                            );
+                            painter.text(
+                                badge_pos,
                                 Align2::RIGHT_BOTTOM,
-                                format!("+{}", items.len() - 2),
+                                badge_text,
                                 FontId::proportional(10.0),
-                                self.theme().accent,
+                                Color32::BLACK,
                             );
                         }
                     }
@@ -769,7 +827,7 @@ impl App {
     }
 
     fn draw_editor(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(8.0);
+        ui.add_space(10.0);
         let weekday = WEEKDAY_LABELS[self.selected.weekday().num_days_from_monday() as usize];
         ui.label(
             RichText::new(format!(
@@ -778,20 +836,23 @@ impl App {
                 self.selected.day(),
                 weekday
             ))
-            .size(15.0)
+            .size(16.0)
             .color(self.theme().accent),
         );
-        ui.add_space(6.0);
+        ui.add_space(8.0);
 
         let mut add_clicked = false;
         ui.horizontal(|ui| {
             let response = ui.add_sized(
-                [ui.available_width() - 64.0, 24.0],
+                [ui.available_width() - 72.0, 32.0],
                 egui::TextEdit::singleline(&mut self.input)
                     .hint_text("添加待办，回车确认…")
                     .desired_width(f32::INFINITY),
             );
-            if ui.button("添加").clicked() {
+            if ui
+                .button(RichText::new("添加").size(14.0).color(self.theme().accent))
+                .clicked()
+            {
                 add_clicked = true;
             }
             let enter = response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
@@ -801,14 +862,27 @@ impl App {
             }
         });
 
+        ui.add_space(6.0);
         ui.horizontal(|ui| {
             ui.checkbox(&mut self.remind_enabled, "⏰ 到点提醒");
             if self.remind_enabled {
                 ui.add_space(6.0);
-                ui.add(DragValue::new(&mut self.remind_hour).range(0..=23).suffix("时"));
+                ui.add(
+                    DragValue::new(&mut self.remind_hour)
+                        .range(0..=23)
+                        .suffix("时"),
+                );
                 ui.label(":");
-                ui.add(DragValue::new(&mut self.remind_minute).range(0..=59).suffix("分"));
-                if ui.button("现在").clicked() {
+                ui.add(
+                    DragValue::new(&mut self.remind_minute)
+                        .range(0..=59)
+                        .suffix("分"),
+                );
+                if ui
+                    .button(RichText::new("现在").small())
+                    .on_hover_text("设为当前时间")
+                    .clicked()
+                {
                     let now = Local::now();
                     self.remind_hour = now.hour() as i32;
                     self.remind_minute = now.minute() as i32;
@@ -818,7 +892,7 @@ impl App {
 
         ui.add_space(6.0);
         egui::ScrollArea::vertical()
-            .max_height(150.0)
+            .max_height(200.0)
             .show(ui, |ui| {
                 let key = date_key(self.selected);
                 let has_items = self.todos.get(&key).is_some_and(|items| !items.is_empty());
@@ -844,13 +918,13 @@ impl App {
                                 todos[index].done = done;
                                 changed = true;
                             }
-                            let mut text = RichText::new(todos[index].text.clone()).color(
-                                if todos[index].done {
+                            let mut text = RichText::new(todos[index].text.clone())
+                                .size(14.0)
+                                .color(if todos[index].done {
                                     theme.text_done
                                 } else {
                                     theme.text_secondary
-                                },
-                            );
+                                });
                             if todos[index].done {
                                 text = text.strikethrough();
                             }
@@ -863,16 +937,28 @@ impl App {
                                 );
                             }
                             if ui
-                                .button(RichText::new("✕").small().color(theme.text_muted))
+                                .button(RichText::new("✕").size(13.0).color(theme.danger))
+                                .on_hover_text("删除")
                                 .clicked()
                             {
                                 todos.remove(index);
                                 changed = true;
                             }
                         });
+                        if index + 1 < todos.len() {
+                            ui.add_space(4.0);
+                        }
                     }
+                    ui.add_space(6.0);
                     ui.horizontal(|ui| {
-                        if ui.button(RichText::new("清除已完成").small()).clicked() {
+                        if ui
+                            .button(
+                                RichText::new("清除已完成")
+                                    .small()
+                                    .color(theme.text_muted),
+                            )
+                            .clicked()
+                        {
                             clear_done = true;
                         }
                     });
@@ -895,6 +981,15 @@ fn truncate_chars(text: &str, max_chars: usize) -> String {
         let cut: String = text.chars().take(max_chars).collect();
         format!("{}…", cut)
     }
+}
+
+fn lighten(color: Color32) -> Color32 {
+    let f = |channel: u8| channel as u32 + ((255 - channel as u32) * 12 / 100);
+    Color32::from_rgb(
+        f(color.r()) as u8,
+        f(color.g()) as u8,
+        f(color.b()) as u8,
+    )
 }
 
 fn parse_hhmm(value: &str) -> Option<u32> {
@@ -933,16 +1028,20 @@ impl eframe::App for App {
         if let Some(reminder) = self.active_reminder.clone() {
             egui::Frame::NONE
                 .fill(self.theme().reminder_banner)
-                .corner_radius(CornerRadius::same(6))
-                .inner_margin(8.0)
+                .corner_radius(CornerRadius::same(10))
+                .inner_margin(10.0)
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(format!("⏰ 待办提醒：{reminder}"))
+                                .size(14.0)
                                 .color(Color32::WHITE)
                                 .strong(),
                         );
-                        if ui.button(RichText::new("知道了").color(Color32::WHITE)).clicked() {
+                        if ui
+                            .button(RichText::new("知道了").size(13.0).color(Color32::WHITE))
+                            .clicked()
+                        {
                             self.active_reminder = None;
                         }
                     });
@@ -954,15 +1053,15 @@ impl eframe::App for App {
             .frame(
                 egui::Frame::NONE
                     .fill(self.theme().bg)
-                    .inner_margin(8.0),
+                    .inner_margin(10.0),
             )
             .show(ui, |ui| {
                 self.draw_calendar(ui);
-                ui.add_space(2.0);
+                ui.add_space(4.0);
                 egui::Frame::NONE
                     .fill(self.theme().card)
-                    .corner_radius(CornerRadius::same(8))
-                    .inner_margin(10.0)
+                    .corner_radius(CornerRadius::same(12))
+                    .inner_margin(12.0)
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
                         self.draw_editor(ui);
@@ -976,7 +1075,8 @@ fn main() -> eframe::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_decorations(false)
             .with_resizable(false)
-            .with_inner_size([452.0, 768.0])
+            .with_inner_size([560.0, 952.0])
+            .with_min_inner_size([520.0, 860.0])
             .with_title("桌面日历待办")
             .with_icon(Arc::new(calendar_icon_data())),
         ..Default::default()
