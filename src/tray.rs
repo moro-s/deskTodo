@@ -8,6 +8,7 @@ use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIc
 pub(crate) enum TrayAction {
     ToggleVisibility,
     TogglePin,
+    OpenSettings,
     Exit,
 }
 
@@ -31,9 +32,10 @@ pub(crate) fn take_tray_actions() -> Vec<TrayAction> {
 pub(crate) fn build_tray(ctx: &egui::Context) -> Option<TrayIcon> {
     let menu = Menu::new();
     let show_item = MenuItem::with_id("toggle", "显示 / 隐藏", true, None);
-    let pin_item = MenuItem::with_id("pin", "切换置顶（Ctrl+Alt+T）", true, None);
+    let settings_item = MenuItem::with_id("settings", "设置", true, None);
+    let pin_item = MenuItem::with_id("pin", "切换置顶", true, None);
     let quit_item = MenuItem::with_id("quit", "退出", true, None);
-    if let Err(err) = menu.append_items(&[&show_item, &pin_item, &quit_item]) {
+    if let Err(err) = menu.append_items(&[&show_item, &settings_item, &pin_item, &quit_item]) {
         eprintln!("构建托盘菜单失败: {err}");
         return None;
     }
@@ -61,6 +63,7 @@ pub(crate) fn build_tray(ctx: &egui::Context) -> Option<TrayIcon> {
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
         match event.id().as_ref() {
             "toggle" => push_tray_action(TrayAction::ToggleVisibility),
+            "settings" => push_tray_action(TrayAction::OpenSettings),
             "pin" => push_tray_action(TrayAction::TogglePin),
             "quit" => push_tray_action(TrayAction::Exit),
             _ => {}

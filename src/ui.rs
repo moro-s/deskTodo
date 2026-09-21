@@ -133,29 +133,39 @@ impl App {
 
                 ui.horizontal_centered(|ui| {
                     ui.add_space(10.0);
-                    if ui
-                        .button(RichText::new("‹").size(19.0))
-                        .on_hover_text("上个月")
-                        .clicked()
-                    {
-                        self.shift_month(-1);
-                    }
-                    if ui
-                        .button(RichText::new("›").size(19.0))
-                        .on_hover_text("下个月")
-                        .clicked()
-                    {
-                        self.shift_month(1);
-                    }
-                    if ui
-                        .button(RichText::new("今天").size(15.5))
-                        .on_hover_text("回到今天")
-                        .clicked()
-                    {
-                        let today = Local::now().date_naive();
-                        self.view_year = today.year();
-                        self.view_month = today.month();
-                        self.selected = today;
+                    if self.show_settings {
+                        if ui
+                            .button(RichText::new("‹ 返回").size(15.5))
+                            .on_hover_text("返回主界面")
+                            .clicked()
+                        {
+                            self.show_settings = false;
+                        }
+                    } else {
+                        if ui
+                            .button(RichText::new("‹").size(19.0))
+                            .on_hover_text("上个月")
+                            .clicked()
+                        {
+                            self.shift_month(-1);
+                        }
+                        if ui
+                            .button(RichText::new("›").size(19.0))
+                            .on_hover_text("下个月")
+                            .clicked()
+                        {
+                            self.shift_month(1);
+                        }
+                        if ui
+                            .button(RichText::new("今天").size(15.5))
+                            .on_hover_text("回到今天")
+                            .clicked()
+                        {
+                            let today = Local::now().date_naive();
+                            self.view_year = today.year();
+                            self.view_month = today.month();
+                            self.selected = today;
+                        }
                     }
 
                     let drag_size = ui.available_size();
@@ -171,11 +181,15 @@ impl App {
                     let _ = rect;
                 });
 
-                let month_text = format!("{}年{}月", self.view_year, self.view_month);
+                let title_text = if self.show_settings {
+                    "设置".to_string()
+                } else {
+                    format!("{}年{}月", self.view_year, self.view_month)
+                };
                 ui.painter().text(
                     titlebar_rect.center(),
                     Align2::CENTER_CENTER,
-                    month_text,
+                    title_text,
                     FontId::proportional(17.0),
                     self.theme().text_title,
                 );

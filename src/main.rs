@@ -6,6 +6,7 @@ mod hotkey;
 mod icon;
 mod models;
 mod reminder;
+mod settings;
 mod storage;
 mod theme;
 mod tray;
