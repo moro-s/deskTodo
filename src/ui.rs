@@ -4,7 +4,7 @@ use crate::storage::save_todos;
 use crate::theme::lighten;
 use chrono::{Datelike, Local, NaiveDate, Timelike};
 use eframe::egui::{
-    self, Align2, Color32, CornerRadius, FontId, Key, Pos2, RichText, Sense, Vec2,
+    self, Align, Align2, Color32, CornerRadius, FontId, Key, Pos2, RichText, Sense, Vec2,
     ViewportCommand,
 };
 
@@ -522,9 +522,12 @@ impl App {
                                 text = text.strikethrough();
                             }
                             let text_width = (ui.available_width() - 110.0).max(60.0);
-                            ui.add_sized(
-                                [text_width, 20.0],
-                                egui::Label::new(text).truncate(),
+                            ui.allocate_ui_with_layout(
+                                Vec2::new(text_width, 20.0),
+                                egui::Layout::left_to_right(Align::Center),
+                                |ui| {
+                                    ui.add(egui::Label::new(text).truncate());
+                                },
                             );
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
