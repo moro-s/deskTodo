@@ -58,7 +58,7 @@ impl App {
                 egui::Panel::right("titlebar_right")
                     .frame(egui::Frame::NONE.fill(titlebar_fill))
                     .resizable(false)
-                    .exact_size(220.0)
+                    .exact_size(168.0)
                     .show_separator_line(false)
                     .show(ui, |ui| {
                         ui.with_layout(
@@ -67,23 +67,16 @@ impl App {
                                 ui.add_space(10.0);
                                 if ui
                                     .button(
-                                        RichText::new("×").size(15.0).color(self.theme().danger),
+                                        RichText::new("×").size(16.0).color(self.theme().danger),
                                     )
                                     .on_hover_text("关闭到托盘")
                                     .clicked()
                                 {
                                     self.hide_to_tray(ctx);
                                 }
-                                if ui
-                                    .button(RichText::new("—").size(15.0))
-                                    .on_hover_text("最小化到托盘")
-                                    .clicked()
-                                {
-                                    self.hide_to_tray(ctx);
-                                }
                                 let pin_label = if self.pinned { "置顶√" } else { "置顶" };
                                 if ui
-                                    .button(RichText::new(pin_label).size(13.0))
+                                    .button(RichText::new(pin_label).size(14.5))
                                     .on_hover_text("快捷键 Ctrl+Alt+T")
                                     .clicked()
                                 {
@@ -91,7 +84,7 @@ impl App {
                                 }
                                 let theme = self.theme();
                                 if ui
-                                    .button(RichText::new(theme.icon).size(15.0))
+                                    .button(RichText::new(theme.icon).size(16.0))
                                     .on_hover_text(format!(
                                         "主题：{}（点击切换）",
                                         theme.name
@@ -107,21 +100,21 @@ impl App {
                 ui.horizontal_centered(|ui| {
                     ui.add_space(10.0);
                     if ui
-                        .button(RichText::new("‹").size(17.0))
+                        .button(RichText::new("‹").size(19.0))
                         .on_hover_text("上个月")
                         .clicked()
                     {
                         self.shift_month(-1);
                     }
                     if ui
-                        .button(RichText::new("›").size(17.0))
+                        .button(RichText::new("›").size(19.0))
                         .on_hover_text("下个月")
                         .clicked()
                     {
                         self.shift_month(1);
                     }
                     if ui
-                        .button(RichText::new("今天").size(14.0))
+                        .button(RichText::new("今天").size(15.5))
                         .on_hover_text("回到今天")
                         .clicked()
                     {
@@ -331,7 +324,7 @@ impl App {
                 |ui| {
                     if self.remind_enabled {
                         if ui
-                            .button(RichText::new("现在").small())
+                            .button(RichText::new("现在").size(13.5))
                             .on_hover_text("设为当前时间")
                             .clicked()
                         {
@@ -387,7 +380,7 @@ impl App {
                     |ui| {
                         if ui
                             .button(
-                                RichText::new("添加").size(14.0).color(self.theme().accent),
+                                RichText::new("添加").size(15.0).color(self.theme().accent),
                             )
                             .clicked()
                         {
@@ -396,7 +389,7 @@ impl App {
                         if ui
                             .button(
                                 RichText::new("收起")
-                                    .size(13.0)
+                                    .size(14.0)
                                     .color(self.theme().text_muted),
                             )
                             .clicked()
@@ -421,7 +414,7 @@ impl App {
             let mut add_clicked = false;
             ui.horizontal(|ui| {
                 let response = ui.add_sized(
-                    [ui.available_width() - 72.0, 32.0],
+                    [ui.available_width() - 78.0, 34.0],
                     egui::TextEdit::singleline(&mut self.input)
                         .id(egui::Id::new("todo_input"))
                         .hint_text("添加待办，点击展开编辑…"),
@@ -431,7 +424,7 @@ impl App {
                     self.focus_expanded_input = true;
                 }
                 if ui
-                    .button(RichText::new("添加").size(14.0).color(self.theme().accent))
+                    .button(RichText::new("添加").size(15.0).color(self.theme().accent))
                     .clicked()
                 {
                     add_clicked = true;
@@ -495,7 +488,7 @@ impl App {
                             let handle = ui
                                 .add(
                                     egui::Label::new(
-                                        RichText::new("≡").size(14.0).color(handle_color),
+                                        RichText::new("≡").size(15.0).color(handle_color),
                                     )
                                     .sense(Sense::drag()),
                                 )
@@ -533,7 +526,7 @@ impl App {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     if ui
-                                        .button(RichText::new("×").size(13.0).color(theme.danger))
+                                        .button(RichText::new("×").size(15.0).color(theme.danger))
                                         .on_hover_text("删除")
                                         .clicked()
                                     {
@@ -599,7 +592,7 @@ impl App {
                         if ui
                             .button(
                                 RichText::new("清除已完成")
-                                    .small()
+                                    .size(13.0)
                                     .color(theme.text_muted),
                             )
                             .clicked()

@@ -103,7 +103,7 @@ pub(crate) fn apply_style(ctx: &egui::Context) {
         style.visuals.widgets.hovered.corner_radius = radius;
         style.visuals.widgets.active.corner_radius = radius;
         style.visuals.widgets.open.corner_radius = radius;
-        style.spacing.button_padding = Vec2::new(10.0, 6.0);
+        style.spacing.button_padding = Vec2::new(14.0, 9.0);
     });
 }
 
