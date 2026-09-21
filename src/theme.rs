@@ -48,7 +48,7 @@ pub(crate) const THEMES: [Theme; 3] = [
     },
     Theme {
         name: "浅色",
-        icon: "☀️",
+        icon: "☀",
         dark: false,
         bg: Color32::from_rgb(238, 240, 244),
         titlebar: Color32::from_rgb(226, 229, 235),

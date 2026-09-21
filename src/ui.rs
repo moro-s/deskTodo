@@ -67,7 +67,7 @@ impl App {
                                 ui.add_space(10.0);
                                 if ui
                                     .button(
-                                        RichText::new("✕").size(15.0).color(self.theme().danger),
+                                        RichText::new("×").size(15.0).color(self.theme().danger),
                                     )
                                     .on_hover_text("关闭到托盘")
                                     .clicked()
@@ -81,7 +81,7 @@ impl App {
                                 {
                                     self.hide_to_tray(ctx);
                                 }
-                                let pin_label = if self.pinned { "置顶✓" } else { "置顶" };
+                                let pin_label = if self.pinned { "置顶√" } else { "置顶" };
                                 if ui
                                     .button(RichText::new(pin_label).size(13.0))
                                     .on_hover_text("快捷键 Ctrl+Alt+T")
@@ -271,7 +271,7 @@ impl App {
                                 break;
                             }
                             let prefix = if item.done {
-                                "✓ "
+                                "√ "
                             } else if item.remind_at.is_some() {
                                 "⏰ "
                             } else {
@@ -464,7 +464,7 @@ impl App {
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     if ui
-                                        .button(RichText::new("✕").size(13.0).color(theme.danger))
+                                        .button(RichText::new("×").size(13.0).color(theme.danger))
                                         .on_hover_text("删除")
                                         .clicked()
                                     {
