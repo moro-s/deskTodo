@@ -233,13 +233,72 @@ impl App {
                                 } else {
                                     "最大化"
                                 };
-                                if ui
-                                    .button(RichText::new("□").size(14.0))
-                                    .on_hover_text(max_tip)
-                                    .clicked()
-                                {
+                                let (max_btn_rect, max_btn_response) =
+                                    ui.allocate_exact_size(Vec2::new(30.0, 26.0), Sense::click());
+                                let theme = self.theme();
+                                let btn_bg = if max_btn_response.hovered() {
+                                    lighten(theme.titlebar)
+                                } else {
+                                    theme.titlebar
+                                };
+                                if max_btn_response.hovered() {
+                                    ui.painter().rect_filled(
+                                        max_btn_rect,
+                                        CornerRadius::same(6),
+                                        btn_bg,
+                                    );
+                                }
+                                let icon_stroke = egui::Stroke::new(
+                                    1.4,
+                                    if max_btn_response.hovered() {
+                                        theme.text_primary
+                                    } else {
+                                        theme.text_secondary
+                                    },
+                                );
+                                let center = max_btn_rect.center();
+                                if maximized {
+                                    let back = egui::Rect::from_min_size(
+                                        Pos2::new(center.x - 3.0, center.y - 7.0),
+                                        Vec2::new(11.0, 11.0),
+                                    );
+                                    let front = egui::Rect::from_min_size(
+                                        Pos2::new(center.x - 7.0, center.y - 3.0),
+                                        Vec2::new(11.0, 11.0),
+                                    );
+                                    ui.painter().rect_stroke(
+                                        back,
+                                        CornerRadius::same(2),
+                                        icon_stroke,
+                                        egui::StrokeKind::Middle,
+                                    );
+                                    ui.painter().rect_filled(
+                                        front,
+                                        CornerRadius::same(2),
+                                        btn_bg,
+                                    );
+                                    ui.painter().rect_stroke(
+                                        front,
+                                        CornerRadius::same(2),
+                                        icon_stroke,
+                                        egui::StrokeKind::Middle,
+                                    );
+                                } else {
+                                    let square =
+                                        egui::Rect::from_center_size(center, Vec2::splat(11.0));
+                                    ui.painter().rect_stroke(
+                                        square,
+                                        CornerRadius::same(2),
+                                        icon_stroke,
+                                        egui::StrokeKind::Middle,
+                                    );
+                                }
+                                if max_btn_response.clicked() {
                                     ctx.send_viewport_cmd(ViewportCommand::Maximized(!maximized));
                                 }
+                                let _ = max_btn_response
+                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                    .on_hover_text(max_tip);
                                 let pin_label = if self.pinned { "置顶√" } else { "置顶" };
                                 if ui
                                     .button(RichText::new(pin_label).size(14.5))
