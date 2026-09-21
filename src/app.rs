@@ -28,6 +28,8 @@ pub(crate) struct App {
     pub(crate) active_reminder: Option<String>,
     pub(crate) drag_index: Option<usize>,
     pub(crate) drop_target: Option<usize>,
+    pub(crate) editor_expanded: bool,
+    pub(crate) focus_expanded_input: bool,
     tray: Option<TrayIcon>,
     #[allow(dead_code)]
     hotkey_manager: GlobalHotKeyManager,
@@ -64,6 +66,8 @@ impl App {
             active_reminder: None,
             drag_index: None,
             drop_target: None,
+            editor_expanded: false,
+            focus_expanded_input: false,
             tray: None,
             hotkey_manager,
         }
@@ -146,7 +150,11 @@ impl App {
     }
 
     pub(crate) fn add_todo(&mut self) {
-        let text = self.input.trim().to_string();
+        let text = self
+            .input
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
         if text.is_empty() {
             return;
         }

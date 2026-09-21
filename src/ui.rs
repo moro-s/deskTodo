@@ -318,70 +318,140 @@ impl App {
     pub(crate) fn draw_editor(&mut self, ui: &mut egui::Ui) {
         ui.add_space(10.0);
         let weekday = WEEKDAY_LABELS[self.selected.weekday().num_days_from_monday() as usize];
-        ui.label(
-            RichText::new(format!(
-                "{}月{}日 周{}",
-                self.selected.month(),
-                self.selected.day(),
-                weekday
-            ))
-            .size(16.0)
-            .color(self.theme().accent),
+        let title = format!(
+            "{}月{}日 周{}",
+            self.selected.month(),
+            self.selected.day(),
+            weekday
         );
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(title).size(16.0).color(self.theme().accent));
+            ui.with_layout(
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    if self.remind_enabled {
+                        if ui
+                            .button(RichText::new("现在").small())
+                            .on_hover_text("设为当前时间")
+                            .clicked()
+                        {
+                            let now = Local::now();
+                            self.remind_hour = now.hour() as i32;
+                            self.remind_minute = now.minute() as i32;
+                        }
+                        ui.add(
+                            DragValue::new(&mut self.remind_minute)
+                                .range(0..=59)
+                                .suffix("分"),
+                        );
+                        ui.label(":");
+                        ui.add(
+                            DragValue::new(&mut self.remind_hour)
+                                .range(0..=23)
+                                .suffix("时"),
+                        );
+                    }
+                    ui.checkbox(&mut self.remind_enabled, "⏰ 到点提醒");
+                },
+            );
+        });
         ui.add_space(8.0);
 
-        let mut add_clicked = false;
-        ui.horizontal(|ui| {
-            let response = ui.add_sized(
-                [ui.available_width() - 72.0, 32.0],
-                egui::TextEdit::singleline(&mut self.input)
-                    .hint_text("添加待办，回车确认…")
-                    .desired_width(f32::INFINITY),
+        if self.editor_expanded {
+            let mut submit = false;
+            let mut collapse = false;
+            let response = ui.add(
+                egui::TextEdit::multiline(&mut self.input)
+                    .id(egui::Id::new("todo_input"))
+                    .hint_text("添加待办，Enter 提交，Shift+Enter 换行…")
+                    .desired_width(f32::INFINITY)
+                    .desired_rows(3)
+                    .return_key(egui::KeyboardShortcut::new(
+                        egui::Modifiers::SHIFT,
+                        Key::Enter,
+                    )),
             );
-            if ui
-                .button(RichText::new("添加").size(14.0).color(self.theme().accent))
-                .clicked()
-            {
-                add_clicked = true;
-            }
-            let enter = response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-            if enter || add_clicked {
-                self.add_todo();
+            if self.focus_expanded_input {
                 response.request_focus();
+                self.focus_expanded_input = false;
             }
-        });
-
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            ui.checkbox(&mut self.remind_enabled, "⏰ 到点提醒");
-            if self.remind_enabled {
-                ui.add_space(6.0);
-                ui.add(
-                    DragValue::new(&mut self.remind_hour)
-                        .range(0..=23)
-                        .suffix("时"),
+            if response.has_focus()
+                && ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift)
+            {
+                submit = true;
+            }
+            if response.has_focus() && ui.input(|i| i.key_pressed(Key::Escape)) {
+                collapse = true;
+            }
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.with_layout(
+                    egui::Layout::right_to_left(egui::Align::Center),
+                    |ui| {
+                        if ui
+                            .button(
+                                RichText::new("添加").size(14.0).color(self.theme().accent),
+                            )
+                            .clicked()
+                        {
+                            submit = true;
+                        }
+                        if ui
+                            .button(
+                                RichText::new("收起")
+                                    .size(13.0)
+                                    .color(self.theme().text_muted),
+                            )
+                            .clicked()
+                        {
+                            collapse = true;
+                        }
+                        ui.label(
+                            RichText::new("Enter 提交 · Shift+Enter 换行 · Esc 收起")
+                                .small()
+                                .color(self.theme().text_muted),
+                        );
+                    },
                 );
-                ui.label(":");
-                ui.add(
-                    DragValue::new(&mut self.remind_minute)
-                        .range(0..=59)
-                        .suffix("分"),
+            });
+            if submit {
+                self.add_todo();
+                self.editor_expanded = false;
+            } else if collapse {
+                self.editor_expanded = false;
+            }
+        } else {
+            let mut add_clicked = false;
+            ui.horizontal(|ui| {
+                let response = ui.add_sized(
+                    [ui.available_width() - 72.0, 32.0],
+                    egui::TextEdit::singleline(&mut self.input)
+                        .id(egui::Id::new("todo_input"))
+                        .hint_text("添加待办，点击展开编辑…"),
                 );
+                if response.gained_focus() {
+                    self.editor_expanded = true;
+                    self.focus_expanded_input = true;
+                }
                 if ui
-                    .button(RichText::new("现在").small())
-                    .on_hover_text("设为当前时间")
+                    .button(RichText::new("添加").size(14.0).color(self.theme().accent))
                     .clicked()
                 {
-                    let now = Local::now();
-                    self.remind_hour = now.hour() as i32;
-                    self.remind_minute = now.minute() as i32;
+                    add_clicked = true;
                 }
+            });
+            if add_clicked {
+                self.add_todo();
             }
-        });
+        }
 
         ui.add_space(6.0);
         egui::ScrollArea::vertical()
-            .max_height(200.0)
+            .max_height(if self.editor_expanded {
+                140.0
+            } else {
+                200.0
+            })
             .auto_shrink([false, true])
             .show(ui, |ui| {
                 let key = date_key(self.selected);
