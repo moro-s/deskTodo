@@ -52,6 +52,23 @@ sudo apt install libgtk-3-dev libxdo-dev libappindicator3-dev
 sudo pacman -S gtk3 xdotool libappindicator-gtk3
 ```
 
+## 项目结构
+
+```
+src/
+├── main.rs      # 入口：窗口选项与启动
+├── app.rs       # 应用状态与生命周期（eframe::App 实现）
+├── ui.rs        # 界面渲染：标题栏、日历网格、待办编辑器
+├── theme.rs     # 主题定义（深色/浅色/墨绿）与全局样式
+├── models.rs    # 数据模型：TodoItem、TodoStore、Config
+├── storage.rs   # 本地 JSON 持久化
+├── reminder.rs  # 提醒调度纯函数（到点计算与下次唤醒）
+├── tray.rs      # 系统托盘与事件队列
+├── hotkey.rs    # 全局快捷键（Ctrl+Alt+T 置顶）
+├── icon.rs      # 程序化生成日历图标
+└── font.rs      # 跨平台中文字体加载
+```
+
 ## 技术栈
 
 - [eframe](https://github.com/emilk/egui/tree/main/crates/eframe) / [egui](https://github.com/emilk/egui) 0.36 —— 即时模式 GUI，采用 glow（OpenGL）渲染后端
