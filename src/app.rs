@@ -26,6 +26,8 @@ pub(crate) struct App {
     pub(crate) remind_minute: i32,
     triggered_reminders: HashSet<String>,
     pub(crate) active_reminder: Option<String>,
+    pub(crate) drag_index: Option<usize>,
+    pub(crate) drop_target: Option<usize>,
     tray: Option<TrayIcon>,
     #[allow(dead_code)]
     hotkey_manager: GlobalHotKeyManager,
@@ -60,6 +62,8 @@ impl App {
             remind_minute: 0,
             triggered_reminders: HashSet::new(),
             active_reminder: None,
+            drag_index: None,
+            drop_target: None,
             tray: None,
             hotkey_manager,
         }
