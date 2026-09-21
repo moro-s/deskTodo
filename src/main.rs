@@ -18,6 +18,98 @@ use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIc
 
 const WEEKDAY_LABELS: [&str; 7] = ["一", "二", "三", "四", "五", "六", "日"];
 
+struct Theme {
+    name: &'static str,
+    icon: &'static str,
+    dark: bool,
+    bg: Color32,
+    titlebar: Color32,
+    card: Color32,
+    cell_selected: Color32,
+    cell_today: Color32,
+    cell_in_month: Color32,
+    cell_out_month: Color32,
+    text_title: Color32,
+    text_primary: Color32,
+    text_secondary: Color32,
+    text_muted: Color32,
+    text_done: Color32,
+    text_dim: Color32,
+    accent: Color32,
+    weekend: Color32,
+    danger: Color32,
+    reminder_banner: Color32,
+}
+
+const THEMES: [Theme; 3] = [
+    Theme {
+        name: "深色",
+        icon: "🌙",
+        dark: true,
+        bg: Color32::from_rgb(24, 26, 30),
+        titlebar: Color32::from_rgb(30, 32, 38),
+        card: Color32::from_rgb(44, 47, 54),
+        cell_selected: Color32::from_rgb(64, 105, 190),
+        cell_today: Color32::from_rgb(58, 64, 78),
+        cell_in_month: Color32::from_rgb(44, 47, 54),
+        cell_out_month: Color32::from_rgb(32, 34, 39),
+        text_title: Color32::from_gray(230),
+        text_primary: Color32::from_gray(210),
+        text_secondary: Color32::from_gray(200),
+        text_muted: Color32::from_gray(150),
+        text_done: Color32::from_gray(110),
+        text_dim: Color32::from_gray(95),
+        accent: Color32::from_rgb(240, 200, 90),
+        weekend: Color32::from_rgb(235, 130, 120),
+        danger: Color32::from_rgb(230, 90, 90),
+        reminder_banner: Color32::from_rgb(180, 60, 60),
+    },
+    Theme {
+        name: "浅色",
+        icon: "☀️",
+        dark: false,
+        bg: Color32::from_rgb(238, 240, 244),
+        titlebar: Color32::from_rgb(226, 229, 235),
+        card: Color32::from_rgb(255, 255, 255),
+        cell_selected: Color32::from_rgb(64, 105, 190),
+        cell_today: Color32::from_rgb(255, 232, 160),
+        cell_in_month: Color32::from_rgb(255, 255, 255),
+        cell_out_month: Color32::from_rgb(232, 234, 238),
+        text_title: Color32::from_gray(45),
+        text_primary: Color32::from_gray(55),
+        text_secondary: Color32::from_gray(65),
+        text_muted: Color32::from_gray(120),
+        text_done: Color32::from_gray(150),
+        text_dim: Color32::from_gray(170),
+        accent: Color32::from_rgb(190, 140, 20),
+        weekend: Color32::from_rgb(200, 85, 75),
+        danger: Color32::from_rgb(200, 70, 70),
+        reminder_banner: Color32::from_rgb(224, 82, 82),
+    },
+    Theme {
+        name: "墨绿",
+        icon: "🍃",
+        dark: true,
+        bg: Color32::from_rgb(18, 28, 25),
+        titlebar: Color32::from_rgb(24, 36, 32),
+        card: Color32::from_rgb(34, 50, 44),
+        cell_selected: Color32::from_rgb(42, 125, 100),
+        cell_today: Color32::from_rgb(52, 74, 64),
+        cell_in_month: Color32::from_rgb(34, 50, 44),
+        cell_out_month: Color32::from_rgb(26, 38, 33),
+        text_title: Color32::from_gray(225),
+        text_primary: Color32::from_gray(205),
+        text_secondary: Color32::from_gray(195),
+        text_muted: Color32::from_gray(140),
+        text_done: Color32::from_gray(105),
+        text_dim: Color32::from_gray(90),
+        accent: Color32::from_rgb(230, 190, 90),
+        weekend: Color32::from_rgb(225, 130, 115),
+        danger: Color32::from_rgb(225, 95, 95),
+        reminder_banner: Color32::from_rgb(170, 70, 60),
+    },
+];
+
 #[derive(Serialize, Deserialize, Clone)]
 struct TodoItem {
     text: String,
@@ -52,6 +144,11 @@ fn take_tray_actions() -> Vec<TrayAction> {
         .unwrap_or_default()
 }
 
+#[derive(Serialize, Deserialize)]
+struct Config {
+    theme: usize,
+}
+
 struct App {
     todos: TodoStore,
     input: String,
@@ -60,6 +157,7 @@ struct App {
     selected: NaiveDate,
     pinned: bool,
     hidden: bool,
+    theme_index: usize,
     remind_enabled: bool,
     remind_hour: i32,
     remind_minute: i32,
@@ -76,6 +174,32 @@ fn date_key(date: NaiveDate) -> String {
 
 fn data_file() -> Option<PathBuf> {
     dirs::data_dir().map(|dir| dir.join("deskTodo").join("todos.json"))
+}
+
+fn config_file() -> Option<PathBuf> {
+    dirs::data_dir().map(|dir| dir.join("deskTodo").join("config.json"))
+}
+
+fn load_config() -> Config {
+    if let Some(path) = config_file() {
+        if let Ok(raw) = fs::read_to_string(path) {
+            if let Ok(config) = serde_json::from_str(&raw) {
+                return config;
+            }
+        }
+    }
+    Config { theme: 0 }
+}
+
+fn save_config(config: &Config) {
+    if let Some(path) = config_file() {
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if let Ok(json) = serde_json::to_string_pretty(config) {
+            let _ = fs::write(path, json);
+        }
+    }
 }
 
 fn load_todos() -> TodoStore {
@@ -204,6 +328,14 @@ impl App {
             }
             ctx_hotkey.request_repaint();
         }));
+        let config = load_config();
+        let theme_index = config.theme.min(THEMES.len() - 1);
+        let visuals = if THEMES[theme_index].dark {
+            egui::Visuals::dark()
+        } else {
+            egui::Visuals::light()
+        };
+        cc.egui_ctx.set_visuals(visuals);
         Self {
             todos: load_todos(),
             input: String::new(),
@@ -212,6 +344,7 @@ impl App {
             selected: today,
             pinned: false,
             hidden: false,
+            theme_index,
             remind_enabled: false,
             remind_hour: 9,
             remind_minute: 0,
@@ -220,6 +353,23 @@ impl App {
             tray: None,
             hotkey_manager,
         }
+    }
+
+    fn theme(&self) -> &'static Theme {
+        &THEMES[self.theme_index]
+    }
+
+    fn cycle_theme(&mut self, ctx: &egui::Context) {
+        self.theme_index = (self.theme_index + 1) % THEMES.len();
+        let visuals = if self.theme().dark {
+            egui::Visuals::dark()
+        } else {
+            egui::Visuals::light()
+        };
+        ctx.set_visuals(visuals);
+        save_config(&Config {
+            theme: self.theme_index,
+        });
     }
 
     fn init_tray(&mut self, ctx: &egui::Context) {
@@ -410,7 +560,7 @@ impl App {
 
     fn draw_titlebar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
         egui::Panel::top("titlebar")
-            .frame(egui::Frame::NONE.fill(Color32::from_rgb(30, 32, 38)))
+            .frame(egui::Frame::NONE.fill(self.theme().titlebar))
             .show(ui, |ui| {
                 ui.horizontal_centered(|ui| {
                     ui.add_space(6.0);
@@ -438,9 +588,20 @@ impl App {
                         Align2::CENTER_CENTER,
                         month_text,
                         FontId::proportional(15.0),
-                        Color32::from_gray(230),
+                        self.theme().text_title,
                     );
 
+                    let theme = self.theme();
+                    if ui
+                        .button(RichText::new(theme.icon).small())
+                        .on_hover_text(format!(
+                            "主题：{}（点击切换）",
+                            theme.name
+                        ))
+                        .clicked()
+                    {
+                        self.cycle_theme(ctx);
+                    }
                     let pin_label = if self.pinned { "置顶✓" } else { "置顶" };
                     if ui
                         .button(RichText::new(pin_label).small())
@@ -457,7 +618,7 @@ impl App {
                         self.hide_to_tray(ctx);
                     }
                     if ui
-                        .button(RichText::new("✕").color(Color32::from_rgb(230, 90, 90)))
+                        .button(RichText::new("✕").color(self.theme().danger))
                         .on_hover_text("关闭到托盘")
                         .clicked()
                     {
@@ -493,9 +654,9 @@ impl App {
             .show(ui, |ui| {
                 for (idx, label) in WEEKDAY_LABELS.iter().enumerate() {
                     let color = if idx >= 5 {
-                        Color32::from_rgb(235, 130, 120)
+                        self.theme().weekend
                     } else {
-                        Color32::from_gray(150)
+                        self.theme().text_muted
                     };
                     ui.add_sized(
                         [cell_w, 14.0],
@@ -534,22 +695,22 @@ impl App {
                     }
 
                     let bg = if is_selected {
-                        Color32::from_rgb(64, 105, 190)
+                        self.theme().cell_selected
                     } else if is_today {
-                        Color32::from_rgb(58, 64, 78)
+                        self.theme().cell_today
                     } else if in_month {
-                        Color32::from_rgb(44, 47, 54)
+                        self.theme().cell_in_month
                     } else {
-                        Color32::from_rgb(32, 34, 39)
+                        self.theme().cell_out_month
                     };
                     ui.painter().rect_filled(rect, CornerRadius::same(6), bg);
 
                     let day_color = if is_today {
-                        Color32::from_rgb(240, 200, 90)
+                        self.theme().accent
                     } else if in_month {
-                        Color32::from_gray(210)
+                        self.theme().text_primary
                     } else {
-                        Color32::from_gray(95)
+                        self.theme().text_dim
                     };
                     ui.painter().text(
                         rect.left_top() + Vec2::new(7.0, 5.0),
@@ -571,9 +732,9 @@ impl App {
                             };
                             let text = format!("{}{}", prefix, truncate_chars(&item.text, 8));
                             let color = if item.done {
-                                Color32::from_gray(110)
+                                self.theme().text_done
                             } else {
-                                Color32::from_gray(200)
+                                self.theme().text_secondary
                             };
                             ui.painter().text(
                                 Pos2::new(rect.left() + 7.0, y),
@@ -590,7 +751,7 @@ impl App {
                                 Align2::RIGHT_BOTTOM,
                                 format!("+{}", items.len() - 2),
                                 FontId::proportional(10.0),
-                                Color32::from_rgb(240, 200, 90),
+                                self.theme().accent,
                             );
                         }
                     }
@@ -618,7 +779,7 @@ impl App {
                 weekday
             ))
             .size(15.0)
-            .color(Color32::from_rgb(240, 200, 90)),
+            .color(self.theme().accent),
         );
         ui.add_space(6.0);
 
@@ -668,10 +829,11 @@ impl App {
                         ui.label(
                             RichText::new("这一天还没有待办")
                                 .small()
-                                .color(Color32::from_gray(120)),
+                                .color(self.theme().text_muted),
                         );
                     });
                 } else {
+                    let theme = self.theme();
                     let todos = self.todos.get_mut(&key).expect("存在待办");
                     let mut changed = false;
                     let mut clear_done = false;
@@ -684,9 +846,9 @@ impl App {
                             }
                             let mut text = RichText::new(todos[index].text.clone()).color(
                                 if todos[index].done {
-                                    Color32::from_gray(120)
+                                    theme.text_done
                                 } else {
-                                    Color32::from_gray(220)
+                                    theme.text_secondary
                                 },
                             );
                             if todos[index].done {
@@ -697,11 +859,11 @@ impl App {
                                 ui.label(
                                     RichText::new(format!("⏰ {remind_at}"))
                                         .small()
-                                        .color(Color32::from_rgb(240, 200, 90)),
+                                        .color(theme.accent),
                                 );
                             }
                             if ui
-                                .button(RichText::new("✕").small().color(Color32::from_gray(140)))
+                                .button(RichText::new("✕").small().color(theme.text_muted))
                                 .clicked()
                             {
                                 todos.remove(index);
@@ -770,7 +932,7 @@ impl eframe::App for App {
 
         if let Some(reminder) = self.active_reminder.clone() {
             egui::Frame::NONE
-                .fill(Color32::from_rgb(180, 60, 60))
+                .fill(self.theme().reminder_banner)
                 .corner_radius(CornerRadius::same(6))
                 .inner_margin(8.0)
                 .show(ui, |ui| {
@@ -791,14 +953,14 @@ impl eframe::App for App {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::NONE
-                    .fill(Color32::from_rgb(24, 26, 30))
+                    .fill(self.theme().bg)
                     .inner_margin(8.0),
             )
             .show(ui, |ui| {
                 self.draw_calendar(ui);
                 ui.add_space(2.0);
                 egui::Frame::NONE
-                    .fill(Color32::from_rgb(44, 47, 54))
+                    .fill(self.theme().card)
                     .corner_radius(CornerRadius::same(8))
                     .inner_margin(10.0)
                     .show(ui, |ui| {

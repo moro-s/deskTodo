@@ -8,6 +8,7 @@
 - ✅ **待办管理**：添加、勾选完成、单条删除、一键清除已完成
 - ⏰ **到点提醒**：添加待办时可设定提醒时间，到点自动唤起窗口、闪烁任务栏并弹出提醒横幅（托盘隐藏状态下同样生效）
 - 📌 **窗口置顶**：全局快捷键 `Ctrl+Alt+T` 随时切换，也可点击标题栏「置顶」按钮
+- 🎨 **主题切换**：标题栏按钮循环切换深色 / 浅色 / 墨绿三套配色，选择自动保存
 - 🖥️ **系统托盘**：关闭 / 最小化按钮和 `Alt+F4` 均隐藏到托盘；左键单击托盘图标切换显示；托盘菜单支持显示 / 隐藏、切换置顶、退出
 - 💾 **本地持久化**：数据以 JSON 存储在用户数据目录，无需联网
 - 🌏 **跨平台**：Windows / macOS / Linux，自动加载各平台中文字体
@@ -23,9 +24,9 @@
 
 | 平台 | 路径 |
 | --- | --- |
-| Windows | `%APPDATA%\deskTodo\todos.json` |
-| macOS | `~/Library/Application Support/deskTodo/todos.json` |
-| Linux | `~/.local/share/deskTodo/todos.json` |
+| Windows | `%APPDATA%\deskTodo\todos.json`（待办）、`%APPDATA%\deskTodo\config.json`（配置） |
+| macOS | `~/Library/Application Support/deskTodo/` |
+| Linux | `~/.local/share/deskTodo/` |
 
 ## 从源码构建
 
