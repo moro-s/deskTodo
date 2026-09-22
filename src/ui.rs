@@ -222,6 +222,68 @@ pub(crate) fn el_checkbox(
     let _ = response.on_hover_cursor(egui::CursorIcon::PointingHand);
 }
 
+pub(crate) fn el_button_centered_floating(
+    ui: &mut egui::Ui,
+    label: &str,
+    theme: &Theme,
+) -> egui::Response {
+    let font_id = FontId::proportional(13.5);
+    let text_width = ui
+        .painter()
+        .layout_no_wrap(label.to_owned(), font_id.clone(), Color32::WHITE)
+        .size()
+        .x;
+    let size = Vec2::new(text_width + 32.0, 32.0);
+    let (line_rect, _) = ui.allocate_exact_size(
+        Vec2::new(ui.available_width(), size.y + 4.0),
+        Sense::hover(),
+    );
+    let left = ((line_rect.width() - size.x) / 2.0).max(0.0);
+    let rect = egui::Rect::from_min_size(
+        Pos2::new(line_rect.left() + left, line_rect.top() + 2.0),
+        size,
+    );
+    let response = ui.interact(rect, egui::Id::new(label), Sense::click());
+    let hovered = response.hovered();
+    let shadow = egui::Rect::from_min_size(rect.min + Vec2::new(0.0, 2.0), size);
+    ui.painter().rect_filled(
+        shadow,
+        CornerRadius::same(5),
+        Color32::from_rgba_unmultiplied(0, 0, 0, if theme.dark { 80 } else { 36 }),
+    );
+    let bg = if hovered {
+        lighten(theme.card)
+    } else {
+        theme.card
+    };
+    ui.painter().rect_filled(rect, CornerRadius::same(5), bg);
+    ui.painter().rect_stroke(
+        rect,
+        CornerRadius::same(5),
+        egui::Stroke::new(
+            1.0,
+            if hovered {
+                theme.danger
+            } else {
+                theme.border
+            },
+        ),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        rect.center(),
+        Align2::CENTER_CENTER,
+        label,
+        font_id,
+        if hovered {
+            theme.danger
+        } else {
+            theme.text_secondary
+        },
+    );
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
 fn time_spinner_column(
     ui: &mut egui::Ui,
     salt: &str,
@@ -953,26 +1015,22 @@ impl App {
             }
         }
 
-        ui.add_space(8.0);
-        let separator_color = self.theme().separator;
-        let separator_width = ui.available_width();
-        let (separator_rect, _) = ui.allocate_exact_size(Vec2::new(separator_width, 1.0), Sense::hover());
-        ui.painter().hline(
-            separator_rect.left()..=separator_rect.right(),
-            separator_rect.center().y,
-            egui::Stroke::new(1.0, separator_color),
-        );
-        ui.add_space(8.0);
+    }
+
+    pub(crate) fn draw_todo_list(&mut self, ui: &mut egui::Ui) {
+        let key = date_key(self.selected);
+        let has_items = self.todos.get(&key).is_some_and(|items| !items.is_empty());
+        let theme = self.theme();
+        let list_height = (ui.available_height() - 46.0).max(70.0);
         egui::ScrollArea::vertical()
-            .max_height(if self.editor_expanded {
-                140.0
+            .max_height(if has_items {
+                list_height
             } else {
-                200.0
+                70.0
             })
             .auto_shrink([false, true])
             .show(ui, |ui| {
-                let key = date_key(self.selected);
-                let has_items = self.todos.get(&key).is_some_and(|items| !items.is_empty());
+                ui.set_width(ui.available_width());
                 if !has_items {
                     ui.set_min_height(40.0);
                     ui.vertical_centered(|ui| {
@@ -984,10 +1042,8 @@ impl App {
                         );
                     });
                 } else {
-                    let theme = self.theme();
                     let todos = self.todos.get_mut(&key).expect("存在待办");
                     let mut changed = false;
-                    let mut clear_done = false;
                     let mut row_rects: Vec<egui::Rect> = Vec::with_capacity(todos.len());
                     let mut dragging_from: Option<usize> = None;
                     let mut drop_requested = false;
@@ -1112,21 +1168,20 @@ impl App {
                         let insert_at = self.drop_target.take().unwrap_or(from);
                         changed |= move_todo(todos, from, insert_at);
                     }
-                    ui.add_space(6.0);
-                    ui.horizontal(|ui| {
-                        if el_button(ui, "清除已完成", ButtonKind::Text, theme).clicked() {
-                            clear_done = true;
-                        }
-                    });
-                    if clear_done {
-                        todos.retain(|item| !item.done);
-                        changed = true;
-                    }
                     if changed {
                         save_todos(&self.todos);
                     }
                 }
             });
+        if has_items {
+            ui.add_space(4.0);
+            if el_button_centered_floating(ui, "清除已完成", self.theme()).clicked()
+                && let Some(todos) = self.todos.get_mut(&key)
+            {
+                todos.retain(|item| !item.done);
+                save_todos(&self.todos);
+            }
+        }
     }
 }
 

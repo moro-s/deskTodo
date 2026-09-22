@@ -357,8 +357,17 @@ impl eframe::App for App {
                     .inner_margin(12.0)
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
-                        ui.set_min_height(ui.available_height());
                         self.draw_editor(ui);
+                    });
+                ui.add_space(8.0);
+                egui::Frame::NONE
+                    .fill(self.theme().card)
+                    .corner_radius(egui::CornerRadius::same(12))
+                    .inner_margin(12.0)
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.set_min_height(ui.available_height());
+                        self.draw_todo_list(ui);
                     });
             });
     }
