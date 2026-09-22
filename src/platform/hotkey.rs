@@ -94,8 +94,9 @@ pub(crate) fn register_hotkey(
     let manager = GlobalHotKeyManager::new().expect("无法创建全局热键管理器");
     let fallback = HotKey::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyT);
     let hotkey = spec_to_hotkey(spec).unwrap_or(fallback);
-    if let Err(err) = manager.register(hotkey) {
-        eprintln!("注册热键失败: {err}");
+    match manager.register(hotkey) {
+        Ok(()) => crate::log_info!("hotkey", "全局热键已注册：{}", spec.display()),
+        Err(err) => crate::log_error!("hotkey", "注册热键失败（{}）：{err}", spec.display()),
     }
 
     let ctx = ctx.clone();
@@ -116,8 +117,15 @@ pub(crate) fn reregister(
 ) -> Result<HotKey, String> {
     let _ = manager.unregister(old);
     let hotkey = spec_to_hotkey(spec).ok_or_else(|| "无效的快捷键组合".to_string())?;
-    manager
-        .register(hotkey)
-        .map_err(|err| format!("快捷键可能被其他程序占用（{err}）"))?;
-    Ok(hotkey)
+    match manager.register(hotkey) {
+        Ok(()) => {
+            crate::log_info!("hotkey", "全局热键已更新：{}", spec.display());
+            Ok(hotkey)
+        }
+        Err(err) => {
+            let message = format!("快捷键可能被其他程序占用（{err}）");
+            crate::log_error!("hotkey", "更新热键失败：{message}");
+            Err(message)
+        }
+    }
 }

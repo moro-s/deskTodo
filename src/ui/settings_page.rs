@@ -1,6 +1,7 @@
 use super::widgets::{el_button, el_button_ex, ButtonKind};
 use crate::app::App;
 use crate::core::config::HotkeySpec;
+use crate::core::logger::{self, LogLevel};
 use crate::core::storage::current_data_dir;
 use crate::platform::hotkey;
 use crate::ui::theme::{Theme, THEMES};
@@ -50,6 +51,14 @@ fn section_button(
     el_button_ex(ui, &label, kind, theme, 13.0, Vec2::new(14.0, 6.0)).clicked()
 }
 
+const LOG_LEVELS: [LogLevel; 5] = [
+    LogLevel::Off,
+    LogLevel::Error,
+    LogLevel::Warn,
+    LogLevel::Info,
+    LogLevel::Debug,
+];
+
 impl App {
     pub(crate) fn draw_settings(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
@@ -68,6 +77,8 @@ impl App {
                     self.draw_opacity_section(ui);
                     ui.add_space(10.0);
                     self.draw_storage_section(ui);
+                    ui.add_space(10.0);
+                    self.draw_log_section(ui);
                     ui.add_space(6.0);
                 });
             });
@@ -293,6 +304,56 @@ impl App {
         }
         if open_clicked {
             self.open_data_folder();
+        }
+    }
+
+    fn draw_log_section(&mut self, ui: &mut egui::Ui) {
+        let theme = self.theme();
+        let mut picked: Option<LogLevel> = None;
+        let mut open_clicked = false;
+        let mut clear_clicked = false;
+        card(ui, "日志输出", theme, |ui| {
+            ui.label(
+                RichText::new("选择运行日志的输出级别，实时生效并自动保存")
+                    .size(13.5)
+                    .color(theme.text_secondary),
+            );
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                for level in LOG_LEVELS {
+                    let active = self.log_level == level;
+                    if section_button(ui, level.display_name().to_string(), active, theme) {
+                        picked = Some(level);
+                    }
+                }
+            });
+            ui.add_space(6.0);
+            let path = logger::log_file_path()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "日志文件未生成".to_string());
+            ui.label(
+                RichText::new(format!("文件：{path}"))
+                    .size(12.5)
+                    .color(theme.text_muted),
+            );
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if el_button(ui, "打开日志", ButtonKind::Default, theme).clicked() {
+                    open_clicked = true;
+                }
+                if el_button(ui, "清空日志", ButtonKind::Default, theme).clicked() {
+                    clear_clicked = true;
+                }
+            });
+        });
+        if let Some(level) = picked {
+            self.set_log_level(level);
+        }
+        if open_clicked {
+            self.open_log_file();
+        }
+        if clear_clicked {
+            logger::clear();
         }
     }
 }

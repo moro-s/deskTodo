@@ -34,13 +34,13 @@ pub(crate) fn build_tray(ctx: &egui::Context) -> Option<TrayIcon> {
     let settings_item = MenuItem::with_id("settings", "设置", true, None);
     let quit_item = MenuItem::with_id("quit", "退出", true, None);
     if let Err(err) = menu.append_items(&[&settings_item, &quit_item]) {
-        eprintln!("构建托盘菜单失败: {err}");
+        crate::log_error!("tray", "构建托盘菜单失败：{err}");
         return None;
     }
 
     let icon_data = calendar_icon_data();
     let Some(icon) = tray_icon_from(&icon_data) else {
-        eprintln!("创建托盘图标失败");
+        crate::log_error!("tray", "创建托盘图标失败");
         return None;
     };
 
@@ -53,10 +53,11 @@ pub(crate) fn build_tray(ctx: &egui::Context) -> Option<TrayIcon> {
     {
         Ok(tray) => tray,
         Err(err) => {
-            eprintln!("创建托盘失败: {err}");
+            crate::log_error!("tray", "创建托盘失败：{err}");
             return None;
         }
     };
+    crate::log_info!("tray", "系统托盘已创建");
 
     let ctx_menu = ctx.clone();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {

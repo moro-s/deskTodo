@@ -1,4 +1,5 @@
 use crate::core::config::{Config, HotkeySpec};
+use crate::core::logger::{self, LogLevel};
 use crate::core::models::{date_key, TodoItem, TodoStore};
 use crate::core::reminder::{due_reminders, next_delay};
 use crate::core::storage::{
@@ -38,6 +39,7 @@ pub(crate) struct App {
     pub(crate) hotkey_status: Option<String>,
     pub(crate) pending_data_dir: String,
     pub(crate) storage_status: Option<String>,
+    pub(crate) log_level: LogLevel,
     data_dir_override: Option<String>,
     triggered_reminders: HashSet<String>,
     pub(crate) drag_index: Option<usize>,
@@ -51,10 +53,18 @@ pub(crate) struct App {
 
 impl App {
     pub(crate) fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        logger::init(LogLevel::Info);
+        let config = load_config();
+        let log_level = LogLevel::parse(&config.log_level);
+        logger::set_level(log_level);
+        crate::log_info!(
+            "app",
+            "deskTodo 启动（日志级别：{}）",
+            log_level.display_name()
+        );
         font::install_cjk_font(&cc.egui_ctx);
         let today = Local::now().date_naive();
 
-        let config = load_config();
         let theme_index = config.theme.min(THEMES.len() - 1);
         let visuals = if THEMES[theme_index].dark {
             egui::Visuals::dark()
@@ -69,8 +79,12 @@ impl App {
         let pending_data_dir = current_data_dir()
             .map(|dir| dir.display().to_string())
             .unwrap_or_default();
+        let todos = load_todos();
+        let todo_days = todos.len();
+        let todo_total: usize = todos.values().map(Vec::len).sum();
+        crate::log_info!("app", "已加载待办 {todo_total} 条（{todo_days} 天）");
         Self {
-            todos: load_todos(),
+            todos,
             input: String::new(),
             view_year: today.year(),
             view_month: today.month(),
@@ -91,6 +105,7 @@ impl App {
             hotkey_status: None,
             pending_data_dir,
             storage_status: None,
+            log_level,
             data_dir_override: config.data_dir.clone(),
             triggered_reminders: HashSet::new(),
             drag_index: None,
@@ -110,7 +125,21 @@ impl App {
             opacity: self.opacity,
             hotkey: self.hotkey_spec.clone(),
             data_dir: self.data_dir_override.clone(),
+            log_level: self.log_level.as_str().to_string(),
         });
+    }
+
+    pub(crate) fn set_log_level(&mut self, level: LogLevel) {
+        self.log_level = level;
+        logger::set_level(level);
+        crate::log_info!("app", "日志级别已切换为：{}", level.display_name());
+        self.persist_config();
+    }
+
+    pub(crate) fn open_log_file(&self) {
+        if let Some(path) = logger::log_file_path() {
+            logger::open_in_editor(&path);
+        }
     }
 
     pub(crate) fn theme(&self) -> &'static Theme {
@@ -126,6 +155,7 @@ impl App {
         };
         ctx.set_visuals(visuals);
         apply_style(ctx, self.theme());
+        crate::log_info!("app", "主题已切换：{}", self.theme().name);
         self.persist_config();
     }
 
@@ -137,11 +167,13 @@ impl App {
     pub(crate) fn set_font_scale(&mut self, ctx: &egui::Context, scale: f32) {
         self.font_scale = scale;
         ctx.set_zoom_factor(scale);
+        crate::log_info!("app", "界面缩放已调整：{scale}");
         self.persist_config();
     }
 
     pub(crate) fn set_opacity(&mut self, opacity: f32) {
         self.opacity = opacity.clamp(0.3, 1.0);
+        crate::log_info!("app", "窗口透明度已调整：{:.0}%", self.opacity * 100.0);
         self.persist_config();
     }
 
@@ -177,10 +209,13 @@ impl App {
             self.persist_config();
             invalidate_data_dir_cache();
             save_todos(&self.todos);
+            logger::reopen(self.log_level);
+            crate::log_info!("storage", "存储位置已恢复默认目录");
             self.storage_status = Some("已恢复默认存储位置，数据已写回默认目录".to_string());
         } else {
             let path = std::path::PathBuf::from(trimmed);
             if std::fs::create_dir_all(&path).is_err() {
+                crate::log_warn!("storage", "无法创建存储目录：{trimmed}");
                 self.storage_status =
                     Some("无法创建该目录，请检查路径是否正确".to_string());
                 return;
@@ -189,6 +224,8 @@ impl App {
             self.persist_config();
             invalidate_data_dir_cache();
             save_todos(&self.todos);
+            logger::reopen(self.log_level);
+            crate::log_info!("storage", "存储位置已切换至：{trimmed}");
             self.storage_status = Some("存储位置已更新，待办数据已迁移".to_string());
         }
         self.pending_data_dir = current_data_dir()
@@ -233,8 +270,10 @@ impl App {
 
     fn toggle_visibility(&mut self, ctx: &egui::Context) {
         if self.hidden {
+            crate::log_debug!("tray", "从托盘恢复窗口");
             self.show_from_tray(ctx);
         } else {
+            crate::log_debug!("tray", "隐藏窗口到托盘");
             self.hide_to_tray(ctx);
         }
     }
@@ -251,6 +290,7 @@ impl App {
                     }
                 }
                 TrayAction::Exit => {
+                    crate::log_info!("app", "应用退出");
                     save_todos(&self.todos);
                     std::process::exit(0);
                 }
@@ -275,6 +315,7 @@ impl App {
             .map(|reminder| reminder.message.as_str())
             .collect::<Vec<_>>()
             .join("\n");
+        crate::log_info!("reminder", "触发 {} 条待办提醒", due.len());
         std::thread::spawn(move || {
             crate::platform::notify::send_notification("deskTodo 待办提醒", &message);
         });

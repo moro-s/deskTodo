@@ -60,7 +60,17 @@ fn send_windows_toast(title: &str, body: &str) {
     if let Some(icon) = ensure_icon_file() {
         command.env("DESKTODO_ICON", icon);
     }
-    let _ = command.creation_flags(CREATE_NO_WINDOW).status();
+    match command.creation_flags(CREATE_NO_WINDOW).status() {
+        Ok(status) if status.success() => {
+            crate::log_info!("notify", "系统通知已发送：{title}");
+        }
+        Ok(status) => {
+            crate::log_error!("notify", "通知命令异常退出：{status}");
+        }
+        Err(err) => {
+            crate::log_error!("notify", "无法启动通知命令：{err}");
+        }
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -70,7 +80,17 @@ fn send_linux_notification(title: &str, body: &str) {
     if let Some(icon) = ensure_icon_file() {
         command.arg("-i").arg(icon);
     }
-    let _ = command.arg(title).arg(body).status();
+    match command.arg(title).arg(body).status() {
+        Ok(status) if status.success() => {
+            crate::log_info!("notify", "系统通知已发送：{title}");
+        }
+        Ok(status) => {
+            crate::log_error!("notify", "通知命令异常退出：{status}");
+        }
+        Err(err) => {
+            crate::log_error!("notify", "无法启动 notify-send：{err}");
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -85,10 +105,21 @@ fn send_macos_notification(title: &str, body: &str) {
         escape_applescript(body),
         escape_applescript(title)
     );
-    let _ = std::process::Command::new("osascript")
+    match std::process::Command::new("osascript")
         .arg("-e")
         .arg(&script)
-        .status();
+        .status()
+    {
+        Ok(status) if status.success() => {
+            crate::log_info!("notify", "系统通知已发送：{title}");
+        }
+        Ok(status) => {
+            crate::log_error!("notify", "通知命令异常退出：{status}");
+        }
+        Err(err) => {
+            crate::log_error!("notify", "无法启动 osascript：{err}");
+        }
+    }
 }
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]

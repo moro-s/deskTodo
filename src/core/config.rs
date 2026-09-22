@@ -62,6 +62,8 @@ pub(crate) struct Config {
     pub(crate) hotkey: HotkeySpec,
     #[serde(default)]
     pub(crate) data_dir: Option<String>,
+    #[serde(default = "default_log_level")]
+    pub(crate) log_level: String,
 }
 
 fn default_font_scale() -> f32 {
@@ -70,4 +72,8 @@ fn default_font_scale() -> f32 {
 
 fn default_opacity() -> f32 {
     1.0
+}
+
+pub(crate) fn default_log_level() -> String {
+    "info".to_string()
 }

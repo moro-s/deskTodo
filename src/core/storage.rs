@@ -1,4 +1,4 @@
-use crate::core::config::Config;
+use crate::core::config::{default_log_level, Config};
 use crate::core::models::TodoStore;
 use std::fs;
 use std::path::PathBuf;
@@ -59,27 +59,33 @@ pub(crate) fn current_data_dir() -> Option<PathBuf> {
     app_data_dir()
 }
 
-fn write_json(path: Option<PathBuf>, json: String) {
-    if let Some(path) = path {
-        if let Some(parent) = path.parent() {
-            let _ = fs::create_dir_all(parent);
+fn write_json(path: Option<PathBuf>, json: String) -> bool {
+    let Some(path) = path else {
+        crate::log_error!("storage", "数据目录不可用，写入被跳过");
+        return false;
+    };
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    match fs::write(&path, json) {
+        Ok(()) => true,
+        Err(err) => {
+            crate::log_error!("storage", "写入失败 {}：{err}", path.display());
+            false
         }
-        let _ = fs::write(path, json);
     }
 }
 
 pub(crate) fn load_todos() -> TodoStore {
-    if let Some(path) = data_file()
-        && let Ok(raw) = fs::read_to_string(path)
-        && let Ok(store) = serde_json::from_str(&raw)
-    {
-        return store;
-    }
-    if let Some(path) = default_data_file()
-        && let Ok(raw) = fs::read_to_string(path)
-        && let Ok(store) = serde_json::from_str(&raw)
-    {
-        return store;
+    for path in [data_file(), default_data_file()].into_iter().flatten() {
+        if let Ok(raw) = fs::read_to_string(&path)
+            && let Ok(store) = serde_json::from_str(&raw)
+        {
+            return store;
+        }
+        if path.exists() {
+            crate::log_warn!("storage", "待办数据文件损坏，已跳过：{}", path.display());
+        }
     }
     TodoStore::new()
 }
@@ -92,10 +98,15 @@ pub(crate) fn save_todos(todos: &TodoStore) {
 
 pub(crate) fn load_config() -> Config {
     if let Some(path) = config_file()
-        && let Ok(raw) = fs::read_to_string(path)
+        && let Ok(raw) = fs::read_to_string(&path)
         && let Ok(config) = serde_json::from_str(&raw)
     {
         return config;
+    }
+    if let Some(path) = config_file()
+        && path.exists()
+    {
+        crate::log_warn!("storage", "配置文件损坏，已使用默认配置：{}", path.display());
     }
     Config {
         theme: 0,
@@ -103,6 +114,7 @@ pub(crate) fn load_config() -> Config {
         opacity: 1.0,
         hotkey: Default::default(),
         data_dir: None,
+        log_level: default_log_level(),
     }
 }
 
