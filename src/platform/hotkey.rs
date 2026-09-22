@@ -1,5 +1,5 @@
-use crate::models::HotkeySpec;
-use crate::tray::{push_tray_action, TrayAction};
+use crate::core::config::HotkeySpec;
+use crate::platform::tray::{push_tray_action, TrayAction};
 use eframe::egui;
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};

@@ -1,4 +1,4 @@
-use crate::models::{date_key, TodoStore};
+use crate::core::models::{date_key, TodoStore};
 use chrono::{DateTime, Local, Timelike};
 use std::collections::HashSet;
 use std::time::Duration;

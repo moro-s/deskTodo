@@ -1,12 +1,13 @@
-use crate::font;
-use crate::hotkey;
-use crate::models::{date_key, Config, HotkeySpec, TodoItem, TodoStore};
-use crate::reminder::{due_reminders, next_delay};
-use crate::storage::{
+use crate::core::config::{Config, HotkeySpec};
+use crate::core::models::{date_key, TodoItem, TodoStore};
+use crate::core::reminder::{due_reminders, next_delay};
+use crate::core::storage::{
     current_data_dir, load_config, load_todos, save_config, save_todos,
 };
-use crate::theme::{apply_style, Theme, THEMES};
-use crate::tray::{build_tray, take_tray_actions, TrayAction};
+use crate::platform::hotkey;
+use crate::platform::tray::{build_tray, take_tray_actions, TrayAction};
+use crate::ui::font;
+use crate::ui::theme::{apply_style, Theme, THEMES};
 use chrono::{Datelike, Local, NaiveDate};
 use eframe::egui::{self, ViewportCommand, WindowLevel};
 use global_hotkey::hotkey::HotKey;
@@ -146,7 +147,7 @@ impl App {
 
     fn sync_window_opacity(&mut self) {
         if self.applied_opacity != Some(self.opacity)
-            && crate::win::set_window_opacity(self.opacity)
+            && crate::platform::window::set_window_opacity(self.opacity)
         {
             self.applied_opacity = Some(self.opacity);
         }

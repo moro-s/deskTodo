@@ -1,9 +1,9 @@
+use super::widgets::{el_button, el_button_ex, ButtonKind};
 use crate::app::App;
-use crate::hotkey;
-use crate::models::HotkeySpec;
-use crate::storage::current_data_dir;
-use crate::theme::{Theme, THEMES};
-use crate::ui::{el_button, el_button_ex, ButtonKind};
+use crate::core::config::HotkeySpec;
+use crate::core::storage::current_data_dir;
+use crate::platform::hotkey;
+use crate::ui::theme::{Theme, THEMES};
 use eframe::egui::{self, CornerRadius, Key, RichText, Vec2};
 
 const FONT_SCALES: [(&str, f32); 4] = [("小", 0.85), ("标准", 1.0), ("大", 1.15), ("特大", 1.3)];

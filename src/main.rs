@@ -1,17 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
-mod font;
-mod hotkey;
-mod icon;
-mod models;
-mod reminder;
-mod settings;
-mod storage;
-mod theme;
-mod tray;
+mod core;
+mod platform;
 mod ui;
-mod win;
 
 use eframe::egui;
 use std::sync::Arc;
@@ -23,8 +15,8 @@ fn main() -> eframe::Result<()> {
             .with_resizable(true)
             .with_inner_size([640.0, 952.0])
             .with_min_inner_size([560.0, 760.0])
-            .with_title(win::WINDOW_TITLE)
-            .with_icon(Arc::new(icon::calendar_icon_data())),
+            .with_title(platform::window::WINDOW_TITLE)
+            .with_icon(Arc::new(platform::icon::calendar_icon_data())),
         ..Default::default()
     };
     eframe::run_native(

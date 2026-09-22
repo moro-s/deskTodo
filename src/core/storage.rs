@@ -1,4 +1,5 @@
-use crate::models::{Config, TodoStore};
+use crate::core::config::Config;
+use crate::core::models::TodoStore;
 use std::fs;
 use std::path::PathBuf;
 

@@ -1,4 +1,4 @@
-use crate::icon::{calendar_icon_data, tray_icon_from};
+use crate::platform::icon::{calendar_icon_data, tray_icon_from};
 use eframe::egui;
 use std::sync::{Mutex, OnceLock};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem};
