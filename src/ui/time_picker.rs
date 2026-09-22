@@ -1,3 +1,4 @@
+use super::text::padded_number;
 use super::widgets::{el_button, ButtonKind};
 use crate::ui::theme::Theme;
 use eframe::egui::{self, Align, Align2, CornerRadius, FontId, RichText, Sense, Vec2};
@@ -88,7 +89,7 @@ fn time_spinner_column(
                     ui.painter().text(
                         rect.center(),
                         Align2::CENTER_CENTER,
-                        format!("{candidate:02}"),
+                        padded_number(candidate as u32),
                         FontId::proportional(14.0),
                         if selected {
                             theme.accent

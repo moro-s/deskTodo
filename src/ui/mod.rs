@@ -1,6 +1,7 @@
 mod calendar;
 mod editor;
 mod settings_page;
+mod text;
 mod time_picker;
 mod titlebar;
 mod todo_list;

@@ -94,7 +94,7 @@ impl App {
                                 todos[index].done = done;
                                 changed = true;
                             }
-                            let mut text = RichText::new(todos[index].text.clone())
+                            let mut text = RichText::new(todos[index].text.as_str())
                                 .size(14.0)
                                 .color(if todos[index].done {
                                     theme.text_done
@@ -131,7 +131,7 @@ impl App {
                                     }
                                     if let Some(remind_label) = &remind_label {
                                         ui.label(
-                                            RichText::new(remind_label.clone())
+                                            RichText::new(remind_label.as_str())
                                                 .small()
                                                 .color(theme.accent),
                                         );

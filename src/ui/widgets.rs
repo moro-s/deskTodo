@@ -1,3 +1,4 @@
+use super::text::measure_width;
 use crate::ui::theme::{lighten, Theme};
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Pos2, Sense, Vec2};
 
@@ -29,11 +30,7 @@ pub(crate) fn el_button_ex(
     padding: Vec2,
 ) -> egui::Response {
     let font_id = FontId::proportional(font_size);
-    let text_width = ui
-        .painter()
-        .layout_no_wrap(label.to_owned(), font_id.clone(), Color32::WHITE)
-        .size()
-        .x;
+    let text_width = measure_width(ui, label, &font_id);
     let size = Vec2::new(
         text_width + padding.x * 2.0,
         font_size + padding.y * 2.0 + 2.0,
@@ -50,27 +47,18 @@ pub(crate) fn el_button_ex(
             };
             (bg, Color32::WHITE, egui::Stroke::NONE)
         }
-        ButtonKind::Default => {
+        ButtonKind::Default | ButtonKind::Plain => {
             if hovered {
                 (
                     theme.hover_fill,
                     theme.accent,
                     egui::Stroke::new(1.0, theme.accent),
                 )
-            } else {
+            } else if matches!(kind, ButtonKind::Default) {
                 (
                     theme.card,
                     theme.text_primary,
                     egui::Stroke::new(1.0, theme.border),
-                )
-            }
-        }
-        ButtonKind::Plain => {
-            if hovered {
-                (
-                    theme.hover_fill,
-                    theme.accent,
-                    egui::Stroke::new(1.0, theme.accent),
                 )
             } else {
                 (
@@ -131,11 +119,7 @@ pub(crate) fn el_checkbox(
     let text_width = if label.is_empty() {
         0.0
     } else {
-        ui.painter()
-            .layout_no_wrap(label.to_owned(), font_id.clone(), Color32::WHITE)
-            .size()
-            .x
-            + 6.0
+        measure_width(ui, label, &font_id) + 6.0
     };
     let (rect, response) =
         ui.allocate_exact_size(Vec2::new(box_size + text_width, 20.0), Sense::click());
@@ -183,11 +167,7 @@ pub(crate) fn el_button_centered_floating(
     theme: &Theme,
 ) -> egui::Response {
     let font_id = FontId::proportional(13.5);
-    let text_width = ui
-        .painter()
-        .layout_no_wrap(label.to_owned(), font_id.clone(), Color32::WHITE)
-        .size()
-        .x;
+    let text_width = measure_width(ui, label, &font_id);
     let size = Vec2::new(text_width + 32.0, 32.0);
     let (line_rect, _) = ui.allocate_exact_size(
         Vec2::new(ui.available_width(), size.y + 4.0),

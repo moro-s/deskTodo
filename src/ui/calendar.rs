@@ -1,18 +1,10 @@
 use super::WEEKDAY_LABELS;
+use super::text::{number, truncate_chars};
 use crate::app::App;
 use crate::core::models::date_key;
 use crate::ui::theme::lighten;
 use chrono::{Datelike, Local, NaiveDate};
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Pos2, RichText, Sense, Vec2};
-
-fn truncate_chars(text: &str, max_chars: usize) -> String {
-    if text.chars().count() <= max_chars {
-        text.to_string()
-    } else {
-        let cut: String = text.chars().take(max_chars).collect();
-        format!("{}…", cut)
-    }
-}
 
 fn anim_towards(ui: &egui::Ui, id: egui::Id, target: f32, speed: f32) -> f32 {
     let dt = ui.input(|i| i.unstable_dt).min(0.1);
@@ -145,7 +137,7 @@ impl App {
                     painter.text(
                         rect.left_top() + Vec2::new(8.0, 5.0),
                         Align2::LEFT_TOP,
-                        date.day().to_string(),
+                        number(date.day()),
                         FontId::proportional(13.5),
                         day_color,
                     );

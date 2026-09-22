@@ -2,7 +2,7 @@ use crate::core::config::{Config, HotkeySpec};
 use crate::core::models::{date_key, TodoItem, TodoStore};
 use crate::core::reminder::{due_reminders, next_delay};
 use crate::core::storage::{
-    current_data_dir, load_config, load_todos, save_config, save_todos,
+    current_data_dir, invalidate_data_dir_cache, load_config, load_todos, save_config, save_todos,
 };
 use crate::platform::hotkey;
 use crate::platform::tray::{build_tray, take_tray_actions, TrayAction};
@@ -175,6 +175,7 @@ impl App {
         if trimmed.is_empty() {
             self.data_dir_override = None;
             self.persist_config();
+            invalidate_data_dir_cache();
             save_todos(&self.todos);
             self.storage_status = Some("已恢复默认存储位置，数据已写回默认目录".to_string());
         } else {
@@ -186,6 +187,7 @@ impl App {
             }
             self.data_dir_override = Some(trimmed.to_string());
             self.persist_config();
+            invalidate_data_dir_cache();
             save_todos(&self.todos);
             self.storage_status = Some("存储位置已更新，待办数据已迁移".to_string());
         }
@@ -257,7 +259,11 @@ impl App {
     }
 
     fn check_reminders(&mut self, ctx: &egui::Context) {
-        let due = due_reminders(&self.todos, &self.triggered_reminders, Local::now());
+        let now = Local::now();
+        let today_key = date_key(now.date_naive());
+        self.triggered_reminders
+            .retain(|id| id.starts_with(&today_key));
+        let due = due_reminders(&self.todos, &self.triggered_reminders, now);
         if due.is_empty() {
             return;
         }
@@ -284,7 +290,7 @@ impl App {
     }
 
     fn next_repaint_delay(&self) -> Duration {
-        next_delay(&self.todos, &self.triggered_reminders, Local::now())
+        next_delay(&self.todos, Local::now())
     }
 
     pub(crate) fn add_todo(&mut self) {

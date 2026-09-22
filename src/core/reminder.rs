@@ -20,6 +20,23 @@ pub(crate) fn parse_hms(value: &str) -> Option<u32> {
     }
 }
 
+fn pending_reminders<'a>(
+    todos: &'a TodoStore,
+    key: &str,
+) -> impl Iterator<Item = (&'a str, &'a str, u32)> + 'a {
+    todos
+        .get(key)
+        .into_iter()
+        .flat_map(|items| items.iter())
+        .filter(|item| !item.done)
+        .filter_map(|item| {
+            item.remind_at
+                .as_deref()
+                .and_then(parse_hms)
+                .map(|secs| (item.text.as_str(), item.remind_at.as_deref().unwrap(), secs))
+        })
+}
+
 pub(crate) fn due_reminders(
     todos: &TodoStore,
     triggered: &HashSet<String>,
@@ -28,58 +45,31 @@ pub(crate) fn due_reminders(
     let now_secs = now.time().num_seconds_from_midnight();
     let key = date_key(now.date_naive());
     let mut due = Vec::new();
-    if let Some(items) = todos.get(&key) {
-        for item in items {
-            if item.done {
-                continue;
-            }
-            let Some(remind_text) = &item.remind_at else {
-                continue;
-            };
-            let Some(remind_secs) = parse_hms(remind_text) else {
-                continue;
-            };
-            let trigger_id = format!("{key}|{}|{remind_text}", item.text);
-            if triggered.contains(&trigger_id) {
-                continue;
-            }
-            if now_secs >= remind_secs {
-                due.push(DueReminder {
-                    trigger_id,
-                    message: format!("{}（{}）", item.text, remind_text),
-                });
-            }
+    for (text, remind_text, remind_secs) in pending_reminders(todos, &key) {
+        if now_secs < remind_secs {
+            continue;
         }
+        let trigger_id = format!("{key}|{text}|{remind_text}");
+        if triggered.contains(&trigger_id) {
+            continue;
+        }
+        due.push(DueReminder {
+            trigger_id,
+            message: format!("{text}（{remind_text}）"),
+        });
     }
     due
 }
 
-pub(crate) fn next_delay(
-    todos: &TodoStore,
-    triggered: &HashSet<String>,
-    now: DateTime<Local>,
-) -> Duration {
+pub(crate) fn next_delay(todos: &TodoStore, now: DateTime<Local>) -> Duration {
     let now_secs = now.time().num_seconds_from_midnight();
     let key = date_key(now.date_naive());
     let mut next = 30u64;
-    if let Some(items) = todos.get(&key) {
-        for item in items {
-            if item.done {
-                continue;
-            }
-            let Some(remind_text) = &item.remind_at else {
-                continue;
-            };
-            let Some(remind_secs) = parse_hms(remind_text) else {
-                continue;
-            };
-            let trigger_id = format!("{key}|{}|{remind_text}", item.text);
-            if triggered.contains(&trigger_id) {
-                continue;
-            }
-            let remain = remind_secs.saturating_sub(now_secs);
-            next = next.min(remain.max(1) as u64);
+    for (_, _, remind_secs) in pending_reminders(todos, &key) {
+        if now_secs >= remind_secs {
+            continue;
         }
+        next = next.min((remind_secs - now_secs).max(1) as u64);
     }
     Duration::from_secs(next)
 }

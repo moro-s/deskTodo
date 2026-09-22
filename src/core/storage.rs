@@ -2,6 +2,7 @@ use crate::core::config::Config;
 use crate::core::models::TodoStore;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::RwLock;
 
 fn default_data_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|dir| dir.join("deskTodo"))
@@ -11,7 +12,7 @@ fn config_file() -> Option<PathBuf> {
     default_data_dir().map(|dir| dir.join("config.json"))
 }
 
-fn custom_data_dir() -> Option<PathBuf> {
+fn read_custom_data_dir() -> Option<PathBuf> {
     let path = config_file()?;
     let raw = fs::read_to_string(path).ok()?;
     let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
@@ -20,6 +21,25 @@ fn custom_data_dir() -> Option<PathBuf> {
         None
     } else {
         Some(PathBuf::from(dir))
+    }
+}
+
+static CUSTOM_DIR_CACHE: RwLock<Option<Option<PathBuf>>> = RwLock::new(None);
+
+fn custom_data_dir() -> Option<PathBuf> {
+    if let Some(cached) = &*CUSTOM_DIR_CACHE.read().ok()? {
+        return cached.clone();
+    }
+    let computed = read_custom_data_dir();
+    if let Ok(mut slot) = CUSTOM_DIR_CACHE.write() {
+        *slot = Some(computed.clone());
+    }
+    computed
+}
+
+pub(crate) fn invalidate_data_dir_cache() {
+    if let Ok(mut slot) = CUSTOM_DIR_CACHE.write() {
+        *slot = None;
     }
 }
 
