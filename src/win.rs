@@ -87,10 +87,102 @@ mod imp {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(target_os = "macos")]
+mod imp {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSApplication;
+
+    pub(crate) fn set_window_opacity(opacity: f32) -> bool {
+        let alpha = opacity.clamp(0.0, 1.0);
+        let Some(mtm) = MainThreadMarker::new() else {
+            return false;
+        };
+        let app = NSApplication::sharedApplication(mtm);
+        let Some(window) = app.mainWindow().or_else(|| app.keyWindow()) else {
+            return false;
+        };
+        window.setAlphaValue(alpha as f64);
+        true
+    }
+}
+
+#[cfg(target_os = "linux")]
+mod imp {
+    use x11rb::connection::Connection;
+    use x11rb::protocol::xproto::{AtomEnum, ConnectionExt as _, PropMode};
+    use x11rb::rust_connection::RustConnection;
+    use x11rb::wrapper::ConnectionExt as _;
+
+    fn intern_atom(conn: &RustConnection, name: &[u8]) -> Option<u32> {
+        let cookie = conn.intern_atom(false, name).ok()?;
+        let reply = cookie.reply().ok()?;
+        Some(reply.atom)
+    }
+
+    fn property_u32(
+        conn: &RustConnection,
+        window: u32,
+        property: u32,
+        type_: AtomEnum,
+    ) -> Option<Vec<u32>> {
+        let cookie = conn
+            .get_property(false, window, property, type_, 0, 64)
+            .ok()?;
+        let reply = cookie.reply().ok()?;
+        reply.value32().map(|values| values.collect())
+    }
+
+    pub(crate) fn set_window_opacity(opacity: f32) -> bool {
+        let alpha = opacity.clamp(0.0, 1.0);
+        let Ok((conn, screen_num)) = RustConnection::connect(None) else {
+            return false;
+        };
+        let Some(root) = conn.setup().roots.get(screen_num) else {
+            return false;
+        };
+        let root = root.root;
+        let Some(client_list) = intern_atom(&conn, b"_NET_CLIENT_LIST") else {
+            return false;
+        };
+        let Some(pid_atom) = intern_atom(&conn, b"_NET_WM_PID") else {
+            return false;
+        };
+        let Some(opacity_atom) = intern_atom(&conn, b"_NET_WM_WINDOW_OPACITY") else {
+            return false;
+        };
+        let Some(windows) = property_u32(&conn, root, client_list, AtomEnum::WINDOW) else {
+            return false;
+        };
+        let my_pid = std::process::id();
+        for window in windows {
+            let matches_pid = property_u32(&conn, window, pid_atom, AtomEnum::CARDINAL)
+                .is_some_and(|pids| pids.first() == Some(&my_pid));
+            if !matches_pid {
+                continue;
+            }
+            let value = (alpha as f64 * u32::MAX as f64).round() as u32;
+            if conn
+                .change_property32(
+                    PropMode::REPLACE,
+                    window,
+                    opacity_atom,
+                    AtomEnum::CARDINAL,
+                    &[value],
+                )
+                .is_err()
+            {
+                return false;
+            }
+            return conn.flush().is_ok();
+        }
+        false
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 pub(crate) use imp::set_window_opacity;
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 pub(crate) fn set_window_opacity(_opacity: f32) -> bool {
     false
 }

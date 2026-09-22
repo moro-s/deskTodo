@@ -19,8 +19,13 @@ fn cjk_font_candidates() -> &'static [&'static str] {
         &[
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+            "/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
+            "/usr/share/fonts/wenquanyi/wqy-microhei/wqy-microhei.ttc",
             "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+            "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
         ]
     }
 }
@@ -29,10 +34,18 @@ fn symbol_font_candidates() -> &'static [&'static str] {
     if cfg!(target_os = "windows") {
         &[r"C:\Windows\Fonts\seguisym.ttf"]
     } else if cfg!(target_os = "macos") {
-        &["/System/Library/Fonts/Apple Symbols.ttf"]
+        &[
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/System/Library/Fonts/STHeiti Light.ttc",
+            "/System/Library/Fonts/Supplemental/Songti.ttc",
+            "/Library/Fonts/Arial Unicode.ttf",
+        ]
     } else {
         &[
             "/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansSymbols2.ttf",
+            "/usr/share/fonts/noto/NotoSansSymbols2-Regular.ttf",
             "/usr/share/fonts/noto/NotoSansSymbols-Regular.ttf",
         ]
     }
@@ -60,6 +73,9 @@ pub(crate) fn install_cjk_font(ctx: &egui::Context) {
             cjk_loaded = true;
             break;
         }
+    }
+    if !cjk_loaded {
+        eprintln!("警告：未找到中文字体，请安装 Noto Sans CJK 或文泉驿字体，否则中文将无法正常显示");
     }
 
     for path in symbol_font_candidates() {

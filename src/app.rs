@@ -195,7 +195,14 @@ impl App {
 
     pub(crate) fn open_data_folder(&self) {
         if let Some(dir) = current_data_dir() {
-            let _ = std::process::Command::new("explorer").arg(dir).spawn();
+            let program = if cfg!(target_os = "windows") {
+                "explorer"
+            } else if cfg!(target_os = "macos") {
+                "open"
+            } else {
+                "xdg-open"
+            };
+            let _ = std::process::Command::new(program).arg(dir).spawn();
         }
     }
 
