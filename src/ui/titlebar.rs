@@ -15,7 +15,7 @@ impl App {
                 egui::Panel::right("titlebar_right")
                     .frame(egui::Frame::NONE.fill(titlebar_fill))
                     .resizable(false)
-                    .exact_size(246.0)
+                    .exact_size(222.0)
                     .show_separator_line(false)
                     .show(ui, |ui| {
                         ui.with_layout(
@@ -109,21 +109,53 @@ impl App {
                                 let _ = max_btn_response
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                                     .on_hover_text(max_tip);
-                                let pin_label = if self.pinned { "置顶√" } else { "置顶" };
+                                let (pin_rect, pin_response) =
+                                    ui.allocate_exact_size(Vec2::new(26.0, 26.0), Sense::click());
                                 let pin_theme = self.theme();
-                                if el_button_ex(
-                                    ui,
-                                    pin_label,
-                                    ButtonKind::Icon,
-                                    pin_theme,
-                                    14.5,
-                                    Vec2::new(10.0, 6.0),
-                                )
-                                .on_hover_text("快捷键 Ctrl+Alt+T")
-                                .clicked()
-                                {
+                                if pin_response.hovered() {
+                                    ui.painter().rect_filled(
+                                        pin_rect,
+                                        CornerRadius::same(6),
+                                        pin_theme.hover_fill,
+                                    );
+                                }
+                                let pin_color = if self.pinned {
+                                    pin_theme.accent
+                                } else if pin_response.hovered() {
+                                    pin_theme.text_primary
+                                } else {
+                                    pin_theme.text_secondary
+                                };
+                                let pin_stroke = egui::Stroke::new(1.4, pin_color);
+                                let pin_center = pin_rect.center();
+                                let head_center = Pos2::new(pin_center.x, pin_center.y - 2.8);
+                                let head_radius = 2.8;
+                                ui.painter().circle_stroke(head_center, head_radius, pin_stroke);
+                                if self.pinned {
+                                    ui.painter().circle_filled(
+                                        head_center,
+                                        head_radius - 1.0,
+                                        pin_theme.accent,
+                                    );
+                                }
+                                ui.painter().line_segment(
+                                    [
+                                        Pos2::new(pin_center.x, head_center.y + head_radius),
+                                        Pos2::new(pin_center.x, pin_center.y + 5.6),
+                                    ],
+                                    pin_stroke,
+                                );
+                                if pin_response.clicked() {
                                     self.set_pinned(ctx, !self.pinned);
                                 }
+                                let pin_tip = if self.pinned {
+                                    "取消置顶（快捷键 Ctrl+Alt+T）"
+                                } else {
+                                    "窗口置顶（快捷键 Ctrl+Alt+T）"
+                                };
+                                let _ = pin_response
+                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                    .on_hover_text(pin_tip);
                                 let theme = self.theme();
                                 if el_button_ex(
                                     ui,
@@ -142,7 +174,7 @@ impl App {
                                     self.cycle_theme(ctx);
                                 }
                                 let (settings_rect, settings_response) =
-                                    ui.allocate_exact_size(Vec2::new(30.0, 26.0), Sense::click());
+                                    ui.allocate_exact_size(Vec2::new(26.0, 26.0), Sense::click());
                                 let settings_theme = self.theme();
                                 if settings_response.hovered() {
                                     ui.painter().rect_filled(
@@ -160,14 +192,14 @@ impl App {
                                     },
                                 );
                                 let gear_center = settings_rect.center();
-                                ui.painter().circle_stroke(gear_center, 5.0, settings_stroke);
+                                ui.painter().circle_stroke(gear_center, 3.4, settings_stroke);
                                 for tooth in 0..8 {
                                     let angle = tooth as f32 * std::f32::consts::TAU / 8.0;
                                     let direction = Vec2::new(angle.cos(), angle.sin());
                                     ui.painter().line_segment(
                                         [
-                                            gear_center + direction * 6.5,
-                                            gear_center + direction * 9.0,
+                                            gear_center + direction * 4.4,
+                                            gear_center + direction * 6.0,
                                         ],
                                         settings_stroke,
                                     );
