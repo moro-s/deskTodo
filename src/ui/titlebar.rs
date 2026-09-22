@@ -153,20 +153,34 @@ impl App {
                                 };
                                 let pin_stroke = egui::Stroke::new(1.4, pin_color);
                                 let pin_center = pin_rect.center();
-                                let head_center = Pos2::new(pin_center.x, pin_center.y - 2.8);
-                                let head_radius = 2.8;
-                                ui.painter().circle_stroke(head_center, head_radius, pin_stroke);
+                                let pin_head = egui::Rect::from_center_size(
+                                    Pos2::new(pin_center.x, pin_center.y - 4.25),
+                                    Vec2::new(10.5, 6.5),
+                                );
+                                let pin_head_corner = CornerRadius {
+                                    nw: 3,
+                                    ne: 3,
+                                    sw: 1,
+                                    se: 1,
+                                };
                                 if self.pinned {
-                                    ui.painter().circle_filled(
-                                        head_center,
-                                        head_radius - 1.0,
+                                    ui.painter().rect_filled(
+                                        pin_head,
+                                        pin_head_corner,
                                         pin_theme.accent,
+                                    );
+                                } else {
+                                    ui.painter().rect_stroke(
+                                        pin_head,
+                                        pin_head_corner,
+                                        pin_stroke,
+                                        egui::StrokeKind::Middle,
                                     );
                                 }
                                 ui.painter().line_segment(
                                     [
-                                        Pos2::new(pin_center.x, head_center.y + head_radius),
-                                        Pos2::new(pin_center.x, pin_center.y + 5.6),
+                                        Pos2::new(pin_center.x, pin_head.bottom() - 0.6),
+                                        Pos2::new(pin_center.x, pin_center.y + 6.25),
                                     ],
                                     pin_stroke,
                                 );
