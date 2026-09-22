@@ -1,5 +1,7 @@
 use super::time_picker::draw_time_picker;
-use super::widgets::{el_button, el_checkbox, ButtonKind};
+use super::widgets::{
+    el_button, el_checkbox, track_button, track_checkbox, track_text_edit, ButtonKind,
+};
 use super::WEEKDAY_LABELS;
 use crate::app::App;
 use chrono::{Datelike, Local, Timelike};
@@ -44,11 +46,17 @@ impl App {
                         }
                     }
                     let checkbox_theme = self.theme();
-                    el_checkbox(
+                    let checkbox_response = el_checkbox(
                         ui,
                         &mut self.remind_enabled,
                         "⏰ 到点提醒",
                         checkbox_theme,
+                    );
+                    track_checkbox(
+                        "todo.remind",
+                        &checkbox_response,
+                        "到点提醒",
+                        self.remind_enabled,
                     );
                 },
             );
@@ -69,6 +77,7 @@ impl App {
                         Key::Enter,
                     )),
             );
+            track_text_edit("todo.input", &response, "待办内容", &self.input);
             if self.focus_expanded_input {
                 response.request_focus();
                 self.focus_expanded_input = false;
@@ -87,10 +96,15 @@ impl App {
                     egui::Layout::right_to_left(egui::Align::Center),
                     |ui| {
                         let theme = self.theme();
-                        if el_button(ui, "添加", ButtonKind::Primary, theme).clicked() {
+                        let submit_response =
+                            el_button(ui, "添加", ButtonKind::Primary, theme);
+                        track_button("todo.submit", &submit_response, "添加");
+                        if submit_response.clicked() {
                             submit = true;
                         }
-                        if el_button(ui, "收起", ButtonKind::Text, theme).clicked() {
+                        let collapse_response = el_button(ui, "收起", ButtonKind::Text, theme);
+                        track_button("todo.collapse", &collapse_response, "收起");
+                        if collapse_response.clicked() {
                             collapse = true;
                         }
                         ui.label(
@@ -116,11 +130,14 @@ impl App {
                         .id(egui::Id::new("todo_input"))
                         .hint_text("添加待办，点击展开编辑…"),
                 );
+                track_text_edit("todo.input", &response, "待办内容", &self.input);
                 if response.gained_focus() {
                     self.editor_expanded = true;
                     self.focus_expanded_input = true;
                 }
-                if el_button(ui, "添加", ButtonKind::Primary, self.theme()).clicked() {
+                let add_response = el_button(ui, "添加", ButtonKind::Primary, self.theme());
+                track_button("todo.submit", &add_response, "添加");
+                if add_response.clicked() {
                     add_clicked = true;
                 }
             });

@@ -1,4 +1,4 @@
-use super::widgets::{el_button, el_button_ex, ButtonKind};
+use super::widgets::{el_button, el_button_ex, track_select_button, ButtonKind};
 use crate::app::App;
 use crate::core::config::HotkeySpec;
 use crate::core::logger::{self, LogLevel};
@@ -37,18 +37,15 @@ fn card<R>(ui: &mut egui::Ui, title: &str, theme: &Theme, body: impl FnOnce(&mut
         .inner
 }
 
-fn section_button(
-    ui: &mut egui::Ui,
-    label: String,
-    active: bool,
-    theme: &Theme,
-) -> bool {
+fn section_button(ui: &mut egui::Ui, label: String, active: bool, theme: &Theme, track_id: &str) -> bool {
     let kind = if active {
         ButtonKind::Primary
     } else {
         ButtonKind::Default
     };
-    el_button_ex(ui, &label, kind, theme, 13.0, Vec2::new(14.0, 6.0)).clicked()
+    let response = el_button_ex(ui, &label, kind, theme, 13.0, Vec2::new(14.0, 6.0));
+    track_select_button(track_id, &response, &label, active);
+    response.clicked()
 }
 
 const LOG_LEVELS: [LogLevel; 5] = [
@@ -181,7 +178,13 @@ impl App {
             ui.horizontal(|ui| {
                 for (index, item) in THEMES.iter().enumerate() {
                     let active = index == self.theme_index;
-                    if section_button(ui, format!("{} {}", item.icon, item.name), active, theme) {
+                    if section_button(
+                        ui,
+                        format!("{} {}", item.icon, item.name),
+                        active,
+                        theme,
+                        &format!("settings.theme.{}", item.name),
+                    ) {
                         picked = Some(index);
                     }
                 }
@@ -205,7 +208,7 @@ impl App {
             ui.horizontal(|ui| {
                 for (name, scale) in FONT_SCALES {
                     let active = (self.font_scale - scale).abs() < 0.01;
-                    if section_button(ui, name.to_string(), active, theme) {
+                    if section_button(ui, name.to_string(), active, theme, &format!("settings.font.{name}")) {
                         picked = Some(scale);
                     }
                 }
@@ -229,7 +232,7 @@ impl App {
             ui.horizontal(|ui| {
                 for (name, value) in OPACITY_STEPS {
                     let active = (self.opacity - value).abs() < 0.005;
-                    if section_button(ui, name.to_string(), active, theme) {
+                    if section_button(ui, name.to_string(), active, theme, &format!("settings.opacity.{name}")) {
                         picked = Some(value);
                     }
                 }
@@ -322,7 +325,13 @@ impl App {
             ui.horizontal(|ui| {
                 for level in LOG_LEVELS {
                     let active = self.log_level == level;
-                    if section_button(ui, level.display_name().to_string(), active, theme) {
+                    if section_button(
+                        ui,
+                        level.display_name().to_string(),
+                        active,
+                        theme,
+                        &format!("settings.log.{}", level.display_name()),
+                    ) {
                         picked = Some(level);
                     }
                 }

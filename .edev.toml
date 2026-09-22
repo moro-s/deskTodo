@@ -1,0 +1,6 @@
+# deskTodo 的 eguidev 自动化启动配置。
+# 使用方式：edev dump / edev eval / edev smoke / edev mcp
+# 注意：先用 cargo build --features devtools 编译，再由 edev 直接启动二进制
+# （直接路径避免 cargo run 的孙进程在 Windows 上阻塞 edev 清理）
+[app]
+command = ["target/debug/deskTodo.exe"]

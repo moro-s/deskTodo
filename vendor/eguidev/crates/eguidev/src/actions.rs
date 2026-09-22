@@ -1,0 +1,390 @@
+//! Input actions for injecting into egui.
+#![allow(missing_docs)]
+
+use std::{array, collections::HashMap, sync::Mutex};
+
+use crate::{
+    registry::lock,
+    types::{Modifiers, Pos2, Vec2},
+};
+
+#[derive(Debug, Clone)]
+pub enum InputAction {
+    PointerMove {
+        pos: Pos2,
+    },
+    PointerButton {
+        pos: Pos2,
+        button: egui::PointerButton,
+        pressed: bool,
+        modifiers: Modifiers,
+    },
+    Key {
+        key: egui::Key,
+        pressed: bool,
+        modifiers: Modifiers,
+    },
+    Text {
+        text: String,
+    },
+    Paste {
+        text: String,
+    },
+    Scroll {
+        delta: Vec2,
+        modifiers: Modifiers,
+    },
+}
+
+impl InputAction {
+    pub fn apply(self, raw_input: &mut egui::RawInput) {
+        match self {
+            Self::PointerMove { pos } => {
+                raw_input.events.push(egui::Event::PointerMoved(pos.into()));
+            }
+            Self::PointerButton {
+                pos,
+                button,
+                pressed,
+                modifiers,
+            } => {
+                raw_input.events.push(egui::Event::PointerButton {
+                    pos: pos.into(),
+                    button,
+                    pressed,
+                    modifiers: modifiers.into(),
+                });
+            }
+            Self::Key {
+                key,
+                pressed,
+                modifiers,
+            } => {
+                raw_input.events.push(egui::Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed,
+                    repeat: false,
+                    modifiers: modifiers.into(),
+                });
+            }
+            Self::Text { text } => {
+                raw_input.events.push(egui::Event::Text(text));
+            }
+            Self::Paste { text } => {
+                raw_input.events.push(egui::Event::Paste(text));
+            }
+            Self::Scroll { delta, modifiers } => {
+                raw_input.events.push(egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: delta.into(),
+                    phase: egui::TouchPhase::Move,
+                    modifiers: modifiers.into(),
+                });
+            }
+        }
+    }
+}
+
+/// Frames an action can be staged ahead of the next drain.
+const ACTION_STAGE_COUNT: usize = 4;
+
+type ActionMap = HashMap<egui::ViewportId, Vec<InputAction>>;
+
+#[derive(Debug, Clone, Copy, Default, serde::Serialize)]
+pub struct ActionQueueStats {
+    pub queued_actions: u64,
+    pub drained_actions: u64,
+    pub last_drain_frame: Option<u64>,
+}
+
+/// How many whole frames an action waits before it reaches the app.
+///
+/// Each drain delivers the immediate stage and moves every later stage one
+/// step closer, so a sequence that must span frames stages one step per frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionTiming {
+    /// Deliver at the next drain.
+    Immediate,
+    /// Deliver one frame after the next drain.
+    AfterOneFrame,
+    /// Deliver two frames after the next drain.
+    AfterTwoFrames,
+    /// Deliver three frames after the next drain.
+    AfterThreeFrames,
+}
+
+/// Every stage, nearest first.
+const ACTION_STAGES: [ActionTiming; ACTION_STAGE_COUNT] = [
+    ActionTiming::Immediate,
+    ActionTiming::AfterOneFrame,
+    ActionTiming::AfterTwoFrames,
+    ActionTiming::AfterThreeFrames,
+];
+
+impl ActionTiming {
+    fn index(self) -> usize {
+        match self {
+            Self::Immediate => 0,
+            Self::AfterOneFrame => 1,
+            Self::AfterTwoFrames => 2,
+            Self::AfterThreeFrames => 3,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Immediate => "actions lock",
+            Self::AfterOneFrame => "actions next lock",
+            Self::AfterTwoFrames => "actions next next lock",
+            Self::AfterThreeFrames => "actions next next next lock",
+        }
+    }
+}
+
+pub struct ActionQueue {
+    staged_actions: [Mutex<ActionMap>; ACTION_STAGE_COUNT],
+    commands: Mutex<HashMap<egui::ViewportId, Vec<egui::ViewportCommand>>>,
+    stats: Mutex<HashMap<egui::ViewportId, ActionQueueStats>>,
+}
+
+impl Default for ActionQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ActionQueue {
+    pub fn new() -> Self {
+        Self {
+            staged_actions: array::from_fn(|_| Mutex::new(HashMap::new())),
+            commands: Mutex::new(HashMap::new()),
+            stats: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn queue_action_with_timing(
+        &self,
+        viewport_id: egui::ViewportId,
+        timing: ActionTiming,
+        action: InputAction,
+    ) {
+        let queue = &self.staged_actions[timing.index()];
+        queue_to_map(queue, timing.label(), viewport_id, action);
+        self.record_queued_action(viewport_id);
+    }
+
+    pub fn queue_command(&self, viewport_id: egui::ViewportId, command: egui::ViewportCommand) {
+        queue_to_map(&self.commands, "commands lock", viewport_id, command);
+    }
+
+    pub fn drain_actions(&self, viewport_id: egui::ViewportId, frame: u64) -> Vec<InputAction> {
+        let current = self.take_staged_actions(ActionTiming::Immediate, viewport_id);
+        for stage in ACTION_STAGES.windows(2) {
+            self.promote_staged_actions(stage[0], stage[1], viewport_id);
+        }
+        self.record_drain(viewport_id, current.len(), frame);
+        current
+    }
+
+    pub fn drain_commands(&self, viewport_id: egui::ViewportId) -> Vec<egui::ViewportCommand> {
+        let mut commands = lock(&self.commands, "commands lock");
+        commands.remove(&viewport_id).unwrap_or_default()
+    }
+
+    pub fn clear_all(&self) {
+        for timing in ACTION_STAGES {
+            lock(&self.staged_actions[timing.index()], timing.label()).clear();
+        }
+        lock(&self.commands, "commands lock").clear();
+        lock(&self.stats, "action stats lock").clear();
+    }
+
+    pub fn stats(&self, viewport_id: egui::ViewportId) -> ActionQueueStats {
+        lock(&self.stats, "action stats lock")
+            .get(&viewport_id)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    pub fn has_pending_actions(&self, viewport_id: egui::ViewportId) -> bool {
+        ACTION_STAGES.into_iter().any(|timing| {
+            has_pending(
+                &self.staged_actions[timing.index()],
+                timing.label(),
+                viewport_id,
+            )
+        })
+    }
+
+    pub fn pending_action_count(&self, viewport_id: egui::ViewportId) -> usize {
+        ACTION_STAGES
+            .into_iter()
+            .map(|timing| {
+                pending_count(
+                    &self.staged_actions[timing.index()],
+                    timing.label(),
+                    viewport_id,
+                )
+            })
+            .sum()
+    }
+
+    pub fn has_pending_commands(&self, viewport_id: egui::ViewportId) -> bool {
+        has_pending(&self.commands, "commands lock", viewport_id)
+    }
+
+    pub fn pending_command_count(&self, viewport_id: egui::ViewportId) -> usize {
+        pending_count(&self.commands, "commands lock", viewport_id)
+    }
+
+    fn take_staged_actions(
+        &self,
+        timing: ActionTiming,
+        viewport_id: egui::ViewportId,
+    ) -> Vec<InputAction> {
+        let mut queue = lock(&self.staged_actions[timing.index()], timing.label());
+        queue.remove(&viewport_id).unwrap_or_default()
+    }
+
+    fn promote_staged_actions(
+        &self,
+        target: ActionTiming,
+        source: ActionTiming,
+        viewport_id: egui::ViewportId,
+    ) {
+        let next_actions = self.take_staged_actions(source, viewport_id);
+        if next_actions.is_empty() {
+            return;
+        }
+        let mut queue = lock(&self.staged_actions[target.index()], target.label());
+        queue.entry(viewport_id).or_default().extend(next_actions);
+    }
+
+    fn record_queued_action(&self, viewport_id: egui::ViewportId) {
+        let mut stats = lock(&self.stats, "action stats lock");
+        stats.entry(viewport_id).or_default().queued_actions += 1;
+    }
+
+    fn record_drain(&self, viewport_id: egui::ViewportId, count: usize, frame: u64) {
+        if count == 0 {
+            return;
+        }
+        let mut stats = lock(&self.stats, "action stats lock");
+        let stats = stats.entry(viewport_id).or_default();
+        stats.drained_actions += count as u64;
+        stats.last_drain_frame = Some(frame);
+    }
+}
+
+fn queue_to_map<T>(
+    queue: &Mutex<HashMap<egui::ViewportId, Vec<T>>>,
+    label: &'static str,
+    viewport_id: egui::ViewportId,
+    value: T,
+) {
+    let mut queue = lock(queue, label);
+    queue.entry(viewport_id).or_default().push(value);
+}
+
+fn has_pending<T>(
+    queue: &Mutex<HashMap<egui::ViewportId, Vec<T>>>,
+    label: &'static str,
+    viewport_id: egui::ViewportId,
+) -> bool {
+    pending_count(queue, label, viewport_id) > 0
+}
+
+fn pending_count<T>(
+    queue: &Mutex<HashMap<egui::ViewportId, Vec<T>>>,
+    label: &'static str,
+    viewport_id: egui::ViewportId,
+) -> usize {
+    lock(queue, label).get(&viewport_id).map_or(0, Vec::len)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn text_payload(action: InputAction) -> String {
+        match action {
+            InputAction::Text { text } => text,
+            other => panic!("expected text action, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn drain_actions_promotes_staged_actions_one_frame_at_a_time() {
+        let queue = ActionQueue::new();
+        let viewport_id = egui::ViewportId::ROOT;
+
+        queue.queue_action_with_timing(
+            viewport_id,
+            ActionTiming::Immediate,
+            InputAction::Text {
+                text: "current".to_string(),
+            },
+        );
+        queue.queue_action_with_timing(
+            viewport_id,
+            ActionTiming::AfterOneFrame,
+            InputAction::Text {
+                text: "next".to_string(),
+            },
+        );
+        queue.queue_action_with_timing(
+            viewport_id,
+            ActionTiming::AfterTwoFrames,
+            InputAction::Text {
+                text: "later".to_string(),
+            },
+        );
+
+        let current = queue
+            .drain_actions(viewport_id, 10)
+            .into_iter()
+            .map(text_payload)
+            .collect::<Vec<_>>();
+        let next = queue
+            .drain_actions(viewport_id, 11)
+            .into_iter()
+            .map(text_payload)
+            .collect::<Vec<_>>();
+        let later = queue
+            .drain_actions(viewport_id, 12)
+            .into_iter()
+            .map(text_payload)
+            .collect::<Vec<_>>();
+
+        assert_eq!(current, vec!["current".to_string()]);
+        assert_eq!(next, vec!["next".to_string()]);
+        assert_eq!(later, vec!["later".to_string()]);
+        assert_eq!(queue.stats(viewport_id).queued_actions, 3);
+        assert_eq!(queue.stats(viewport_id).drained_actions, 3);
+        assert_eq!(queue.stats(viewport_id).last_drain_frame, Some(12));
+        assert!(!queue.has_pending_actions(viewport_id));
+    }
+
+    #[test]
+    fn empty_drains_do_not_update_last_drain_frame() {
+        let queue = ActionQueue::new();
+        let viewport_id = egui::ViewportId::ROOT;
+
+        assert!(queue.drain_actions(viewport_id, 10).is_empty());
+        assert_eq!(queue.stats(viewport_id).last_drain_frame, None);
+
+        queue.queue_action_with_timing(
+            viewport_id,
+            ActionTiming::Immediate,
+            InputAction::Text {
+                text: "typed".to_string(),
+            },
+        );
+        assert_eq!(queue.drain_actions(viewport_id, 11).len(), 1);
+        assert_eq!(queue.stats(viewport_id).last_drain_frame, Some(11));
+
+        assert!(queue.drain_actions(viewport_id, 12).is_empty());
+        assert_eq!(queue.stats(viewport_id).last_drain_frame, Some(11));
+    }
+}

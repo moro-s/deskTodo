@@ -1,5 +1,5 @@
 use super::text::padded_number;
-use super::widgets::{el_button, ButtonKind};
+use super::widgets::{el_button, track_button, ButtonKind};
 use crate::ui::theme::Theme;
 use eframe::egui::{self, Align, Align2, CornerRadius, FontId, RichText, Sense, Vec2};
 
@@ -132,6 +132,7 @@ pub(crate) fn draw_time_picker(
         ))
         .size(13.5)),
     );
+    track_button("todo.remind_time", &trigger, "到点提醒时间");
     let scroll_marker = egui::Id::new("time_picker_scroll");
     let mut snap = ui
         .memory(|m| m.data.get_temp::<bool>(scroll_marker))
@@ -143,7 +144,7 @@ pub(crate) fn draw_time_picker(
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .show(|ui| {
             let panel_w = 46.0 * 3.0 + ui.spacing().item_spacing.x * 2.0;
-            ui.set_min_width(panel_w);
+            ui.set_width(panel_w);
             ui.horizontal(|ui| {
                 time_spinner_column(ui, "tp_hour", hour, 24, theme, snap);
                 time_spinner_column(ui, "tp_minute", minute, 60, theme, snap);

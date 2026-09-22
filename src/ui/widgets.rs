@@ -1,6 +1,72 @@
 use super::text::text_metrics;
 use crate::ui::theme::{lighten, Theme};
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontId, Pos2, Sense, Vec2};
+use eguidev::{WidgetMeta, WidgetRole, WidgetRoleMeta, WidgetValue};
+
+/// 向 eguidev 注册一个按钮控件的自动化元数据。
+pub(crate) fn track_button(id: &str, response: &egui::Response, label: &str) {
+    eguidev::track_response(
+        id,
+        response,
+        WidgetMeta {
+            role: WidgetRoleMeta::Button { selected: None },
+            label: Some(label.to_string()),
+            visible: true,
+            ..Default::default()
+        },
+    );
+}
+
+/// 向 eguidev 注册一个带选中态的分段按钮自动化元数据。
+pub(crate) fn track_select_button(
+    id: &str,
+    response: &egui::Response,
+    label: &str,
+    selected: bool,
+) {
+    eguidev::track_response(
+        id,
+        response,
+        WidgetMeta {
+            role: WidgetRoleMeta::Button {
+                selected: Some(selected),
+            },
+            label: Some(label.to_string()),
+            visible: true,
+            ..Default::default()
+        },
+    );
+}
+
+/// 向 eguidev 注册一个文本输入控件的自动化元数据。
+pub(crate) fn track_text_edit(id: &str, response: &egui::Response, label: &str, value: &str) {
+    eguidev::track_response(
+        id,
+        response,
+        WidgetMeta {
+            role: WidgetRoleMeta::Plain(WidgetRole::TextEdit),
+            label: Some(label.to_string()),
+            value: Some(WidgetValue::Text(value.to_string())),
+            visible: true,
+            ..Default::default()
+        },
+    );
+}
+
+/// 向 eguidev 注册一个复选框控件的自动化元数据。
+pub(crate) fn track_checkbox(id: &str, response: &egui::Response, label: &str, checked: bool) {
+    eguidev::track_response(
+        id,
+        response,
+        WidgetMeta {
+            role: WidgetRoleMeta::Plain(WidgetRole::Checkbox),
+            label: Some(label.to_string()),
+            value: Some(WidgetValue::Bool(checked)),
+            visible: true,
+            ..Default::default()
+        },
+    );
+}
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum ButtonKind {
@@ -118,7 +184,7 @@ pub(crate) fn el_checkbox(
     checked: &mut bool,
     label: &str,
     theme: &Theme,
-) {
+) -> egui::Response {
     let box_size = 15.0;
     let font_id = FontId::proportional(13.0);
     let (text_width, label_offset_y) = if label.is_empty() {
@@ -164,24 +230,28 @@ pub(crate) fn el_checkbox(
             theme.text_primary,
         );
     }
-    let _ = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
+/// 在指定区域底部中央绘制悬浮按钮（绝对定位，不占布局空间）。
 pub(crate) fn el_button_centered_floating(
     ui: &mut egui::Ui,
     label: &str,
     theme: &Theme,
+    area: egui::Rect,
 ) -> egui::Response {
     let font_id = FontId::proportional(13.5);
     let metrics = text_metrics(ui, label, &font_id);
     let size = Vec2::new(metrics.width + 32.0, 32.0);
-    let (line_rect, _) = ui.allocate_exact_size(
-        Vec2::new(ui.available_width(), size.y + 4.0),
-        Sense::hover(),
-    );
-    let left = ((line_rect.width() - size.x) / 2.0).max(0.0);
-    let rect = egui::Rect::from_min_size(
-        Pos2::new(line_rect.left() + left, line_rect.top() + 2.0),
+    let min_center_x = area.left() + size.x * 0.5;
+    let max_center_x = area.right() - size.x * 0.5;
+    let center_x = if min_center_x <= max_center_x {
+        area.center().x.clamp(min_center_x, max_center_x)
+    } else {
+        area.center().x
+    };
+    let rect = egui::Rect::from_center_size(
+        Pos2::new(center_x, area.bottom() - 6.0 - size.y * 0.5),
         size,
     );
     let response = ui.interact(rect, egui::Id::new(label), Sense::click());

@@ -167,20 +167,25 @@ impl App {
                         }
                         if pending.len() > 3 {
                             let badge_text = format!("+{}", pending.len() - 3);
-                            let badge_pos = Pos2::new(rect.right() - 6.0, rect.bottom() - 5.0);
-                            let badge_rect =
-                                egui::Rect::from_center_size(badge_pos, Vec2::new(24.0, 14.0));
-                            ui.painter().rect_filled(
+                            let badge_size = Vec2::new(24.0, 14.0);
+                            let badge_rect = egui::Rect::from_min_size(
+                                Pos2::new(
+                                    rect.right() - 5.0 - badge_size.x,
+                                    rect.top() + 4.0,
+                                ),
+                                badge_size,
+                            );
+                            painter.rect_filled(
                                 badge_rect,
-                                CornerRadius::same(6),
-                                theme.accent,
+                                CornerRadius::same(7),
+                                theme.danger,
                             );
                             painter.text(
-                                badge_pos,
-                                Align2::RIGHT_BOTTOM,
+                                badge_rect.center(),
+                                Align2::CENTER_CENTER,
                                 badge_text,
                                 FontId::proportional(10.0),
-                                Color32::BLACK,
+                                Color32::WHITE,
                             );
                         }
                     }

@@ -1,0 +1,31 @@
+# Direct Luau Smoketests
+
+This directory holds the checked-in Luau smoketest suite for `eguidev_demo`.
+
+## Conventions
+
+- Every smoketest file is a self-contained `.luau` script.
+- Each script must establish its own starting state with `eguidev.fixture(...)` before interacting
+  with the UI. Fixtures wait for their ready conditions, so setup-specific
+  widget waits should only appear when the test is exercising an interaction after setup.
+- Scripts should assert visible app behavior and public API results rather than internal details.
+- `edev smoke` ignores a script's final return value; use assertions for pass/fail and
+  `eguidev.log(...)` for extra diagnostics.
+- Keep files independent. Do not rely on state left behind by an earlier smoketest.
+
+## Run
+
+```sh
+cargo xtask smoke
+```
+
+Useful authoring commands:
+
+```sh
+cargo xtask smoke --list
+cargo xtask smoke --only '*visual*'
+cargo xtask smoke --only '*visual*' --only '*layout*'
+cargo xtask smoke --repeat 5 --only '*layout*'
+cargo xtask smoke --until-fail 50
+cargo xtask smoke --bundle --fail-fast
+```

@@ -2,9 +2,12 @@ pub(crate) const WINDOW_TITLE: &str = "桌面日历待办";
 
 #[cfg(target_os = "windows")]
 mod imp {
+    use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
+
     const GWL_EXSTYLE: i32 = -20;
     const WS_EX_LAYERED: isize = 0x0008_0000;
     const LWA_ALPHA: u32 = 0x2;
+    const NO_OPACITY: u32 = u32::MAX;
 
     struct FindCtx {
         pid: u32,
@@ -18,6 +21,7 @@ mod imp {
             lparam: isize,
         ) -> i32;
         fn GetWindowThreadProcessId(hwnd: isize, lpdwProcessId: *mut u32) -> u32;
+        fn IsWindow(hwnd: isize) -> i32;
         fn IsWindowVisible(hwnd: isize) -> i32;
         fn GetWindowTextLengthW(hwnd: isize) -> i32;
         fn GetWindowTextW(hwnd: isize, lpString: *mut u16, nMaxCount: i32) -> i32;
@@ -69,21 +73,46 @@ mod imp {
         ctx.hwnd
     }
 
+    /// 缓存主窗口句柄，避免每帧枚举全部顶层窗口。
+    fn main_window() -> Option<isize> {
+        static CACHED: AtomicIsize = AtomicIsize::new(0);
+        let cached = CACHED.load(Ordering::Relaxed);
+        if cached != 0 && unsafe { IsWindow(cached) } != 0 {
+            return Some(cached);
+        }
+        let hwnd = find_main_window()?;
+        CACHED.store(hwnd, Ordering::Relaxed);
+        Some(hwnd)
+    }
+
+    /// 幂等地应用窗口透明度。
+    ///
+    /// winit 在置顶、显示等状态切换时会用缓存的扩展样式覆写 `GWL_EXSTYLE`，
+    /// 顺带抹掉外部设置的 `WS_EX_LAYERED`。因此这里每帧都校验该位，
+    /// 一旦发现被覆写就重设样式并重申 alpha，保证透明度始终生效。
     pub(crate) fn set_window_opacity(opacity: f32) -> bool {
-        let Some(hwnd) = find_main_window() else {
+        static APPLIED: AtomicU32 = AtomicU32::new(NO_OPACITY);
+        let Some(hwnd) = main_window() else {
             return false;
         };
         let alpha = (opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
+        let want_layered = opacity < 1.0;
         let style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
-        let new_style = if opacity < 1.0 {
-            style | WS_EX_LAYERED
-        } else {
-            style & !WS_EX_LAYERED
-        };
-        if new_style != style {
-            unsafe { SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style) };
+        let has_layered = (style & WS_EX_LAYERED) != 0;
+        let mut needs_alpha = APPLIED.load(Ordering::Relaxed) != opacity.to_bits();
+
+        if want_layered && !has_layered {
+            unsafe { SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED) };
+            needs_alpha = true;
+        } else if !want_layered && has_layered {
+            unsafe { SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style & !WS_EX_LAYERED) };
         }
-        unsafe { SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA) != 0 }
+
+        if want_layered && needs_alpha {
+            unsafe { SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA) };
+        }
+        APPLIED.store(opacity.to_bits(), Ordering::Relaxed);
+        true
     }
 }
 
@@ -91,9 +120,16 @@ mod imp {
 mod imp {
     use objc2::MainThreadMarker;
     use objc2_app_kit::NSApplication;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    const NO_OPACITY: u32 = u32::MAX;
 
     pub(crate) fn set_window_opacity(opacity: f32) -> bool {
+        static APPLIED: AtomicU32 = AtomicU32::new(NO_OPACITY);
         let alpha = opacity.clamp(0.0, 1.0);
+        if APPLIED.load(Ordering::Relaxed) == alpha.to_bits() {
+            return true;
+        }
         let Some(mtm) = MainThreadMarker::new() else {
             return false;
         };
@@ -102,6 +138,7 @@ mod imp {
             return false;
         };
         window.setAlphaValue(alpha as f64);
+        APPLIED.store(alpha.to_bits(), Ordering::Relaxed);
         true
     }
 }
@@ -133,7 +170,12 @@ mod imp {
     }
 
     pub(crate) fn set_window_opacity(opacity: f32) -> bool {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static APPLIED: AtomicU32 = AtomicU32::new(u32::MAX);
         let alpha = opacity.clamp(0.0, 1.0);
+        if APPLIED.load(Ordering::Relaxed) == alpha.to_bits() {
+            return true;
+        }
         let Ok((conn, screen_num)) = RustConnection::connect(None) else {
             return false;
         };
@@ -173,7 +215,11 @@ mod imp {
             {
                 return false;
             }
-            return conn.flush().is_ok();
+            let flushed = conn.flush().is_ok();
+            if flushed {
+                APPLIED.store(alpha.to_bits(), Ordering::Relaxed);
+            }
+            return flushed;
         }
         false
     }

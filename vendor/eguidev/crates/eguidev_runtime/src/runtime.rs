@@ -1,0 +1,337 @@
+//! Embedded runtime attachment for DevMCP automation.
+
+use std::{any::Any, sync::Arc};
+
+use egui::{Context, FullOutput};
+use eguidev::internal::{
+    devmcp::RuntimeHooks,
+    presentation::Presentation,
+    registry::{Inner, viewport_id_to_string},
+};
+use tokio::sync::Notify;
+
+#[cfg(target_os = "macos")]
+use crate::macos::{
+    configure_session, disconnect_session, platform_window_states, reassert_background_policy,
+};
+use crate::{
+    DevMcp, ScriptErrorInfo, ScriptEvalOptions, ScriptEvalOutcome,
+    automation::{DEFAULT_SCRIPT_EVAL_TIMEOUT_MS, script::run_script_eval},
+    egui_diagnostics::EguiDiagnosticJournal,
+    screenshots::{ScreenshotDebugSnapshot, ScreenshotKind, ScreenshotManager, ScreenshotState},
+    server::start_server,
+};
+
+#[derive(Debug)]
+pub struct Runtime {
+    screenshots: ScreenshotManager,
+    frame_notify: Notify,
+    egui_diagnostics: EguiDiagnosticJournal,
+    diagnostic_barriers_enabled: bool,
+}
+
+#[derive(Debug)]
+struct RuntimeHooksImpl {
+    runtime: Arc<Runtime>,
+}
+
+impl Runtime {
+    fn new(diagnostic_barriers_enabled: bool) -> Self {
+        Self {
+            screenshots: ScreenshotManager::new(),
+            frame_notify: Notify::new(),
+            egui_diagnostics: EguiDiagnosticJournal::new(),
+            diagnostic_barriers_enabled,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn ensure_for_inner(inner: &Arc<Inner>) -> Arc<Self> {
+        if let Some(runtime) = Self::from_inner(inner) {
+            return runtime;
+        }
+        let runtime = Arc::new(Self::new(false));
+        inner.set_runtime_hooks(Arc::new(RuntimeHooksImpl {
+            runtime: Arc::clone(&runtime),
+        }));
+        runtime
+    }
+
+    #[cfg(test)]
+    pub(crate) fn ensure_for_inner_with_diagnostic_barriers(inner: &Arc<Inner>) -> Arc<Self> {
+        if let Some(runtime) = Self::from_inner(inner) {
+            return runtime;
+        }
+        let runtime = Arc::new(Self::new(true));
+        inner.set_runtime_hooks(Arc::new(RuntimeHooksImpl {
+            runtime: Arc::clone(&runtime),
+        }));
+        runtime
+    }
+
+    pub(crate) fn from_inner(inner: &Inner) -> Option<Arc<Self>> {
+        let hooks = inner.runtime_hooks()?;
+        let hooks = hooks.as_any().downcast_ref::<RuntimeHooksImpl>()?;
+        Some(Arc::clone(&hooks.runtime))
+    }
+
+    pub(crate) fn for_devmcp(devmcp: &DevMcp) -> Option<Arc<Self>> {
+        let hooks = devmcp.runtime_hooks()?;
+        let hooks = hooks.as_any().downcast_ref::<RuntimeHooksImpl>()?;
+        Some(Arc::clone(&hooks.runtime))
+    }
+
+    pub(crate) fn frame_notify(&self) -> &Notify {
+        &self.frame_notify
+    }
+
+    pub(crate) fn egui_diagnostics(&self) -> &EguiDiagnosticJournal {
+        &self.egui_diagnostics
+    }
+
+    pub(crate) fn diagnostic_barriers_enabled(&self) -> bool {
+        self.diagnostic_barriers_enabled
+    }
+
+    pub(crate) fn screenshot_state(&self, request_id: u64) -> Option<ScreenshotState> {
+        self.screenshots.screenshot_state(request_id)
+    }
+
+    pub(crate) fn insert_screenshot(&self, request_id: u64, state: ScreenshotState) {
+        self.screenshots.insert_screenshot(request_id, state);
+    }
+
+    pub(crate) fn take_screenshot(&self, request_id: u64) -> Option<ScreenshotState> {
+        self.screenshots.take_screenshot(request_id)
+    }
+
+    pub(crate) fn record_screenshot_request(
+        &self,
+        inner: &Inner,
+        request_id: u64,
+        viewport_id: egui::ViewportId,
+        kind: &ScreenshotKind,
+    ) {
+        self.screenshots.record_screenshot_request(
+            request_id,
+            viewport_id,
+            kind,
+            inner.verbose_logging(),
+            inner.frame_count(),
+        );
+    }
+
+    pub(crate) fn record_screenshot_command_sent(
+        &self,
+        inner: &Inner,
+        viewport_id: egui::ViewportId,
+        request_id: Option<u64>,
+    ) {
+        self.screenshots.record_screenshot_command_sent(
+            viewport_id,
+            request_id,
+            inner.verbose_logging(),
+            inner.frame_count(),
+        );
+    }
+
+    pub(crate) fn screenshot_debug_snapshot(&self, inner: &Inner) -> ScreenshotDebugSnapshot {
+        self.screenshots
+            .screenshot_debug_snapshot(true, inner.frame_count())
+    }
+
+    pub(crate) fn log_screenshot(&self, inner: &Inner, message: String) {
+        self.screenshots
+            .log_screenshot(inner.verbose_logging(), message);
+    }
+
+    pub(crate) async fn configure_presentation(
+        &self,
+        session_id: u64,
+        presentation: Presentation,
+    ) -> Result<(), String> {
+        #[cfg(target_os = "macos")]
+        {
+            let frame_complete = self.frame_notify.notified();
+            let needs_frame = configure_session(session_id, presentation).await?;
+            if needs_frame {
+                frame_complete.await;
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (session_id, presentation);
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn disconnect_presentation(&self, session_id: u64) -> Result<(), String> {
+        #[cfg(target_os = "macos")]
+        disconnect_session(session_id).await?;
+        #[cfg(not(target_os = "macos"))]
+        let _ = session_id;
+        Ok(())
+    }
+
+    fn capture_screenshot_events(&self, inner: &Inner, events: &[egui::Event]) {
+        self.screenshots.capture_screenshot_events(
+            events,
+            inner.verbose_logging(),
+            inner.frame_count(),
+        );
+    }
+
+    fn finish_frame(&self, inner: &Inner, ctx: &Context) {
+        let viewport_id = ctx.viewport_id();
+        let mut sent_viewport_command = false;
+        for command in inner.actions.drain_commands(viewport_id) {
+            sent_viewport_command = true;
+            if let egui::ViewportCommand::Screenshot(user_data) = &command {
+                let request_id = user_data
+                    .data
+                    .as_ref()
+                    .and_then(|data| data.downcast_ref::<u64>())
+                    .copied();
+                self.record_screenshot_command_sent(inner, viewport_id, request_id);
+            }
+            ctx.send_viewport_cmd(command);
+        }
+        if sent_viewport_command {
+            ctx.request_repaint();
+        }
+        inner.viewports.update_viewports(ctx);
+        #[cfg(target_os = "macos")]
+        inner
+            .viewports
+            .merge_platform_state(&platform_window_states());
+        #[cfg(target_os = "macos")]
+        if let Some(conflict) = reassert_background_policy() {
+            let diagnostic = serde_json::to_string(&conflict)
+                .expect("macOS presentation conflict should serialize");
+            eprintln!("eguidev: macos.presentation_conflict {diagnostic}");
+        }
+        inner.paint_overlays(ctx);
+        self.frame_notify.notify_waiters();
+    }
+
+    fn capture_egui_output(
+        &self,
+        inner: &Inner,
+        viewport_id: egui::ViewportId,
+        output: &FullOutput,
+    ) {
+        self.egui_diagnostics.record_output(
+            viewport_id_to_string(viewport_id),
+            inner.frame_count(),
+            output,
+        );
+    }
+}
+
+impl RuntimeHooks for RuntimeHooksImpl {
+    fn as_any(&self) -> &(dyn Any + Send + Sync) {
+        self
+    }
+
+    fn on_raw_input(&self, inner: &Inner, events: &[egui::Event]) {
+        self.runtime.capture_screenshot_events(inner, events);
+    }
+
+    fn on_frame_end(&self, inner: &Inner, ctx: &Context) {
+        self.runtime.finish_frame(inner, ctx);
+    }
+
+    fn on_egui_output(&self, inner: &Inner, viewport_id: egui::ViewportId, output: &FullOutput) {
+        self.runtime.capture_egui_output(inner, viewport_id, output);
+    }
+}
+
+/// Attach the embedded runtime to an inert `DevMcp` handle.
+pub fn attach(devmcp: DevMcp) -> DevMcp {
+    attach_internal(devmcp, true, true)
+}
+
+fn attach_internal(
+    devmcp: DevMcp,
+    should_start_server: bool,
+    diagnostic_barriers_enabled: bool,
+) -> DevMcp {
+    if devmcp.is_enabled() {
+        return devmcp;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use crate::macos::install_occlusion_hook;
+        install_occlusion_hook();
+    }
+
+    let inner = Arc::new(Inner::new());
+    let runtime = Arc::new(Runtime::new(diagnostic_barriers_enabled));
+    let hooks = Arc::new(RuntimeHooksImpl {
+        runtime: Arc::clone(&runtime),
+    });
+    let devmcp = devmcp.activate_runtime(Arc::clone(&inner), hooks);
+    if should_start_server {
+        start_server(inner, runtime);
+    }
+    devmcp
+}
+
+#[cfg(test)]
+pub fn attach_for_tests(devmcp: DevMcp) -> DevMcp {
+    attach_internal(devmcp, false, false)
+}
+
+/// Evaluate a Luau script directly against this attached `DevMcp` instance.
+pub async fn eval_script(
+    devmcp: &DevMcp,
+    script_source: &str,
+    timeout_ms: Option<u64>,
+    options: ScriptEvalOptions,
+) -> ScriptEvalOutcome {
+    let Some(inner) = devmcp.inner_arc() else {
+        return ScriptEvalOutcome::error_only(ScriptErrorInfo {
+            error_type: "runtime".to_string(),
+            message: "DevMCP runtime is not attached".to_string(),
+            location: None,
+            backtrace: None,
+            code: None,
+            details: None,
+        });
+    };
+    let runtime = Runtime::for_devmcp(devmcp).expect("runtime attached");
+    let timeout_ms = timeout_ms.unwrap_or(DEFAULT_SCRIPT_EVAL_TIMEOUT_MS);
+    let source_name = options
+        .source_name
+        .unwrap_or_else(|| "script.luau".to_string());
+    run_script_eval(
+        inner,
+        runtime,
+        script_source.to_string(),
+        timeout_ms,
+        source_name,
+        options.args,
+    )
+    .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::server::{reset_start_server_calls, start_server_calls};
+
+    #[test]
+    fn inactive_handle_does_not_start_server() {
+        reset_start_server_calls();
+        let _devmcp = DevMcp::new();
+        assert_eq!(start_server_calls(), 0);
+    }
+
+    #[test]
+    fn attach_starts_server_once() {
+        reset_start_server_calls();
+        let _devmcp = attach(DevMcp::new());
+        assert_eq!(start_server_calls(), 1);
+    }
+}

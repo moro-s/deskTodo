@@ -1,4 +1,7 @@
-use super::widgets::{el_button_centered_floating, el_button_ex, el_checkbox, ButtonKind};
+use super::widgets::{
+    el_button_centered_floating, el_button_ex, el_checkbox, track_button, track_checkbox,
+    ButtonKind,
+};
 use crate::app::App;
 use crate::core::models::{date_key, TodoItem};
 use crate::core::storage::save_todos;
@@ -36,13 +39,11 @@ impl App {
         let key = date_key(self.selected);
         let has_items = self.todos.get(&key).is_some_and(|items| !items.is_empty());
         let theme = self.theme();
-        let list_height = (ui.available_height() - 46.0).max(70.0);
+        let list_area = ui.max_rect();
+        // 滚动视口预留悬浮按钮区域，保证最后一行永远不会与按钮重叠
+        let viewport_height = (list_area.height() - 48.0).max(70.0);
         egui::ScrollArea::vertical()
-            .max_height(if has_items {
-                list_height
-            } else {
-                70.0
-            })
+            .max_height(viewport_height)
             .auto_shrink([false, true])
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
@@ -89,7 +90,13 @@ impl App {
                                 drop_requested = true;
                             }
                             let mut done = todos[index].done;
-                            el_checkbox(ui, &mut done, "", theme);
+                            let checkbox_response = el_checkbox(ui, &mut done, "", theme);
+                            track_checkbox(
+                                &format!("todo.item.{index}.done"),
+                                &checkbox_response,
+                                "完成",
+                                done,
+                            );
                             if done != todos[index].done {
                                 todos[index].done = done;
                                 changed = true;
@@ -115,7 +122,7 @@ impl App {
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    if el_button_ex(
+                                    let delete_response = el_button_ex(
                                         ui,
                                         "×",
                                         ButtonKind::Danger,
@@ -123,9 +130,13 @@ impl App {
                                         15.0,
                                         Vec2::new(6.0, 4.0),
                                     )
-                                    .on_hover_text("删除")
-                                    .clicked()
-                                    {
+                                    .on_hover_text("删除");
+                                    track_button(
+                                        &format!("todo.item.{index}.delete"),
+                                        &delete_response,
+                                        "删除",
+                                    );
+                                    if delete_response.clicked() {
                                         todos.remove(index);
                                         changed = true;
                                     }
@@ -187,15 +198,18 @@ impl App {
                         save_todos(&self.todos);
                     }
                 }
+                // 滚动到底时给最后一行与悬浮按钮之间留出间距
+                ui.add_space(12.0);
             });
-        if has_items {
-            ui.add_space(4.0);
-            if el_button_centered_floating(ui, "清除已完成", self.theme()).clicked()
-                && let Some(todos) = self.todos.get_mut(&key)
-            {
-                todos.retain(|item| !item.done);
-                save_todos(&self.todos);
-            }
+        let clear_response =
+            el_button_centered_floating(ui, "清除已完成", self.theme(), list_area);
+        track_button("todo.clear_done", &clear_response, "清除已完成");
+        if clear_response.clicked()
+            && let Some(todos) = self.todos.get_mut(&key)
+            && todos.iter().any(|item| item.done)
+        {
+            todos.retain(|item| !item.done);
+            save_todos(&self.todos);
         }
     }
 }

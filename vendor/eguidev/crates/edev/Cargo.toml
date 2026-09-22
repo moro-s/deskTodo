@@ -1,0 +1,48 @@
+[package]
+name = "edev"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories = ["command-line-utilities", "development-tools"]
+description = "MCP launcher, fixture runner, and smoketest harness for eguidev apps"
+# Test-only binary; it must not ship to users of the published crate.
+exclude = ["src/bin/edev_test_app.rs"]
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait.workspace = true
+clap = { version = "4.6", features = ["derive"] }
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+thiserror.workspace = true
+tmcp.workspace = true
+tokio = { workspace = true, features = ["signal"] }
+eguidev.workspace = true
+eguidev_runtime.workspace = true
+toml = "1.1"
+
+[dev-dependencies]
+tempfile.workspace = true
+tmcp = { workspace = true, features = ["testutils"] }
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = { version = "0.6.2", default-features = false, features = ["alloc"] }
+libproc = "0.14.11"
+objc2 = "0.6.4"
+objc2-av-foundation = { version = "0.3.2", default-features = false, features = ["AVMediaFormat", "AVVideoSettings"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSObject", "NSArray", "NSError", "NSString", "NSURL", "NSProcessInfo"] }
+objc2-screen-capture-kit = { version = "0.3.2", default-features = false, features = ["SCRecordingOutput", "SCShareableContent", "SCStream", "block2", "libc", "objc2-av-foundation", "objc2-core-foundation", "objc2-core-graphics"] }

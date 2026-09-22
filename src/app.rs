@@ -33,7 +33,6 @@ pub(crate) struct App {
     pub(crate) show_settings: bool,
     pub(crate) font_scale: f32,
     pub(crate) opacity: f32,
-    applied_opacity: Option<f32>,
     pub(crate) hotkey_spec: HotkeySpec,
     pub(crate) recording_hotkey: bool,
     pub(crate) hotkey_status: Option<String>,
@@ -46,6 +45,7 @@ pub(crate) struct App {
     pub(crate) drop_target: Option<usize>,
     pub(crate) editor_expanded: bool,
     pub(crate) focus_expanded_input: bool,
+    devmcp: eguidev::DevMcp,
     tray: Option<TrayIcon>,
     hotkey_manager: GlobalHotKeyManager,
     current_hotkey: HotKey,
@@ -83,6 +83,9 @@ impl App {
         let todo_days = todos.len();
         let todo_total: usize = todos.values().map(Vec::len).sum();
         crate::log_info!("app", "已加载待办 {todo_total} 条（{todo_days} 天）");
+        let devmcp = eguidev::DevMcp::new();
+        #[cfg(feature = "devtools")]
+        let devmcp = eguidev_runtime::attach(devmcp);
         Self {
             todos,
             input: String::new(),
@@ -99,7 +102,6 @@ impl App {
             show_settings: false,
             font_scale: config.font_scale,
             opacity: config.opacity.clamp(0.3, 1.0),
-            applied_opacity: None,
             hotkey_spec: config.hotkey.clone(),
             recording_hotkey: false,
             hotkey_status: None,
@@ -112,6 +114,7 @@ impl App {
             drop_target: None,
             editor_expanded: false,
             focus_expanded_input: false,
+            devmcp,
             tray: None,
             hotkey_manager,
             current_hotkey,
@@ -178,11 +181,9 @@ impl App {
     }
 
     fn sync_window_opacity(&mut self) {
-        if self.applied_opacity != Some(self.opacity)
-            && crate::platform::window::set_window_opacity(self.opacity)
-        {
-            self.applied_opacity = Some(self.opacity);
-        }
+        // 平台层幂等：值未变时仅做轻量校验，
+        // winit 覆写 WS_EX_LAYERED 后会在下一帧自动重申。
+        crate::platform::window::set_window_opacity(self.opacity);
     }
 
     pub(crate) fn apply_hotkey(&mut self, spec: HotkeySpec) {
@@ -377,6 +378,8 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        let devmcp = self.devmcp.clone();
+        let _guard = eguidev::FrameGuard::new(&devmcp, &ctx);
 
         self.draw_titlebar(&ctx, ui);
 

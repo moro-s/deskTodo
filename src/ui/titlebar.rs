@@ -1,10 +1,11 @@
 use super::text::text_metrics;
-use super::widgets::{el_button_ex, ButtonKind};
+use super::widgets::{el_button_ex, track_button, ButtonKind};
 use crate::app::App;
 use chrono::{Datelike, Local};
 use eframe::egui::{
     self, Align2, Color32, CornerRadius, FontId, Pos2, Sense, Vec2, ViewportCommand,
 };
+use eguidev::{WidgetMeta, WidgetRoleMeta, WidgetValue};
 
 fn paint_centered_glyph(
     ui: &mut egui::Ui,
@@ -58,6 +59,7 @@ impl App {
                                 if close_response.clicked() {
                                     self.hide_to_tray(ctx);
                                 }
+                                track_button("titlebar.close", &close_response, "关闭到托盘");
                                 let _ = close_response
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                                     .on_hover_text("关闭到托盘");
@@ -71,66 +73,28 @@ impl App {
                                 let (max_btn_rect, max_btn_response) =
                                     ui.allocate_exact_size(Vec2::new(30.0, 26.0), Sense::click());
                                 let theme = self.theme();
-                                let btn_bg = if max_btn_response.hovered() {
-                                    theme.hover_fill
-                                } else {
-                                    theme.titlebar
-                                };
                                 if max_btn_response.hovered() {
                                     ui.painter().rect_filled(
                                         max_btn_rect,
                                         CornerRadius::same(6),
-                                        btn_bg,
+                                        theme.hover_fill,
                                     );
                                 }
-                                let icon_stroke = egui::Stroke::new(
-                                    1.4,
-                                    if max_btn_response.hovered() {
-                                        theme.text_primary
-                                    } else {
-                                        theme.text_secondary
-                                    },
-                                );
-                                let center = max_btn_rect.center();
-                                if maximized {
-                                    let back = egui::Rect::from_min_size(
-                                        Pos2::new(center.x - 3.0, center.y - 7.0),
-                                        Vec2::new(11.0, 11.0),
-                                    );
-                                    let front = egui::Rect::from_min_size(
-                                        Pos2::new(center.x - 7.0, center.y - 3.0),
-                                        Vec2::new(11.0, 11.0),
-                                    );
-                                    ui.painter().rect_stroke(
-                                        back,
-                                        CornerRadius::same(2),
-                                        icon_stroke,
-                                        egui::StrokeKind::Middle,
-                                    );
-                                    ui.painter().rect_filled(
-                                        front,
-                                        CornerRadius::same(2),
-                                        btn_bg,
-                                    );
-                                    ui.painter().rect_stroke(
-                                        front,
-                                        CornerRadius::same(2),
-                                        icon_stroke,
-                                        egui::StrokeKind::Middle,
-                                    );
+                                let max_icon_color = if max_btn_response.hovered() {
+                                    theme.text_primary
                                 } else {
-                                    let square =
-                                        egui::Rect::from_center_size(center, Vec2::splat(11.0));
-                                    ui.painter().rect_stroke(
-                                        square,
-                                        CornerRadius::same(2),
-                                        icon_stroke,
-                                        egui::StrokeKind::Middle,
-                                    );
-                                }
+                                    theme.text_secondary
+                                };
+                                super::zoom_icon::ZOOM_ICON.paint(
+                                    ui.painter(),
+                                    max_btn_rect.center(),
+                                    15.0,
+                                    max_icon_color,
+                                );
                                 if max_btn_response.clicked() {
                                     ctx.send_viewport_cmd(ViewportCommand::Maximized(!maximized));
                                 }
+                                track_button("titlebar.maximize", &max_btn_response, max_tip);
                                 let _ = max_btn_response
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                                     .on_hover_text(max_tip);
@@ -151,38 +115,11 @@ impl App {
                                 } else {
                                     pin_theme.text_secondary
                                 };
-                                let pin_stroke = egui::Stroke::new(1.4, pin_color);
-                                let pin_center = pin_rect.center();
-                                let pin_head = egui::Rect::from_center_size(
-                                    Pos2::new(pin_center.x, pin_center.y - 4.25),
-                                    Vec2::new(10.5, 6.5),
-                                );
-                                let pin_head_corner = CornerRadius {
-                                    nw: 3,
-                                    ne: 3,
-                                    sw: 1,
-                                    se: 1,
-                                };
-                                if self.pinned {
-                                    ui.painter().rect_filled(
-                                        pin_head,
-                                        pin_head_corner,
-                                        pin_theme.accent,
-                                    );
-                                } else {
-                                    ui.painter().rect_stroke(
-                                        pin_head,
-                                        pin_head_corner,
-                                        pin_stroke,
-                                        egui::StrokeKind::Middle,
-                                    );
-                                }
-                                ui.painter().line_segment(
-                                    [
-                                        Pos2::new(pin_center.x, pin_head.bottom() - 0.6),
-                                        Pos2::new(pin_center.x, pin_center.y + 6.25),
-                                    ],
-                                    pin_stroke,
+                                super::pin_icon::PIN_ICON.paint(
+                                    ui.painter(),
+                                    pin_rect.center(),
+                                    15.0,
+                                    pin_color,
                                 );
                                 if pin_response.clicked() {
                                     self.set_pinned(ctx, !self.pinned);
@@ -192,6 +129,19 @@ impl App {
                                 } else {
                                     "窗口置顶（快捷键 Ctrl+Alt+T）"
                                 };
+                                eguidev::track_response(
+                                    "titlebar.pin",
+                                    &pin_response,
+                                    WidgetMeta {
+                                        role: WidgetRoleMeta::Button {
+                                            selected: Some(self.pinned),
+                                        },
+                                        label: Some("置顶".to_string()),
+                                        value: Some(WidgetValue::Bool(self.pinned)),
+                                        visible: true,
+                                        ..Default::default()
+                                    },
+                                );
                                 let _ = pin_response
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                                     .on_hover_text(pin_tip);
@@ -220,6 +170,19 @@ impl App {
                                 if switch_response.clicked() {
                                     self.cycle_theme(ctx);
                                 }
+                                eguidev::track_response(
+                                    "titlebar.theme",
+                                    &switch_response,
+                                    WidgetMeta {
+                                        role: WidgetRoleMeta::Button { selected: None },
+                                        label: Some("切换主题".to_string()),
+                                        value: Some(WidgetValue::Text(
+                                            switch_theme.name.to_string(),
+                                        )),
+                                        visible: true,
+                                        ..Default::default()
+                                    },
+                                );
                                 let _ = switch_response
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                                     .on_hover_text(format!(
@@ -260,6 +223,7 @@ impl App {
                                 if settings_response.clicked() {
                                     self.show_settings = true;
                                 }
+                                track_button("titlebar.settings", &settings_response, "打开设置");
                                 let _ = settings_response
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                                     .on_hover_text("打开设置");
@@ -271,7 +235,7 @@ impl App {
                     ui.add_space(10.0);
                     let nav_theme = self.theme();
                     if self.show_settings {
-                        if el_button_ex(
+                        let back_response = el_button_ex(
                             ui,
                             "‹ 返回",
                             ButtonKind::Default,
@@ -279,13 +243,13 @@ impl App {
                             15.5,
                             Vec2::new(10.0, 5.0),
                         )
-                        .on_hover_text("返回主界面")
-                        .clicked()
-                        {
+                        .on_hover_text("返回主界面");
+                        track_button("titlebar.back", &back_response, "返回主界面");
+                        if back_response.clicked() {
                             self.show_settings = false;
                         }
                     } else {
-                        if el_button_ex(
+                        let prev_response = el_button_ex(
                             ui,
                             "‹",
                             ButtonKind::Icon,
@@ -293,12 +257,12 @@ impl App {
                             19.0,
                             Vec2::new(6.0, 3.0),
                         )
-                        .on_hover_text("上个月")
-                        .clicked()
-                        {
+                        .on_hover_text("上个月");
+                        track_button("titlebar.prev_month", &prev_response, "上个月");
+                        if prev_response.clicked() {
                             self.shift_month(-1);
                         }
-                        if el_button_ex(
+                        let next_response = el_button_ex(
                             ui,
                             "›",
                             ButtonKind::Icon,
@@ -306,12 +270,12 @@ impl App {
                             19.0,
                             Vec2::new(6.0, 3.0),
                         )
-                        .on_hover_text("下个月")
-                        .clicked()
-                        {
+                        .on_hover_text("下个月");
+                        track_button("titlebar.next_month", &next_response, "下个月");
+                        if next_response.clicked() {
                             self.shift_month(1);
                         }
-                        if el_button_ex(
+                        let today_response = el_button_ex(
                             ui,
                             "今天",
                             ButtonKind::Plain,
@@ -319,9 +283,9 @@ impl App {
                             15.0,
                             Vec2::new(12.0, 5.0),
                         )
-                        .on_hover_text("回到今天")
-                        .clicked()
-                        {
+                        .on_hover_text("回到今天");
+                        track_button("titlebar.today", &today_response, "回到今天");
+                        if today_response.clicked() {
                             let today = Local::now().date_naive();
                             self.view_year = today.year();
                             self.view_month = today.month();
