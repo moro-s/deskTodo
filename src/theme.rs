@@ -20,7 +20,6 @@ pub(crate) struct Theme {
     pub(crate) accent: Color32,
     pub(crate) weekend: Color32,
     pub(crate) danger: Color32,
-    pub(crate) reminder_banner: Color32,
     pub(crate) separator: Color32,
 }
 
@@ -45,7 +44,6 @@ pub(crate) const THEMES: [Theme; 3] = [
         accent: Color32::from_rgb(240, 200, 90),
         weekend: Color32::from_rgb(235, 130, 120),
         danger: Color32::from_rgb(230, 90, 90),
-        reminder_banner: Color32::from_rgb(180, 60, 60),
         separator: Color32::from_rgb(62, 66, 74),
     },
     Theme {
@@ -68,7 +66,6 @@ pub(crate) const THEMES: [Theme; 3] = [
         accent: Color32::from_rgb(190, 140, 20),
         weekend: Color32::from_rgb(200, 85, 75),
         danger: Color32::from_rgb(200, 70, 70),
-        reminder_banner: Color32::from_rgb(224, 82, 82),
         separator: Color32::from_rgb(224, 227, 233),
     },
     Theme {
@@ -91,7 +88,6 @@ pub(crate) const THEMES: [Theme; 3] = [
         accent: Color32::from_rgb(230, 190, 90),
         weekend: Color32::from_rgb(225, 130, 115),
         danger: Color32::from_rgb(225, 95, 95),
-        reminder_banner: Color32::from_rgb(170, 70, 60),
         separator: Color32::from_rgb(50, 70, 62),
     },
 ];

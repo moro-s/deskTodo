@@ -39,7 +39,6 @@ pub(crate) struct App {
     pub(crate) storage_status: Option<String>,
     data_dir_override: Option<String>,
     triggered_reminders: HashSet<String>,
-    pub(crate) active_reminder: Option<String>,
     pub(crate) drag_index: Option<usize>,
     pub(crate) drop_target: Option<usize>,
     pub(crate) editor_expanded: bool,
@@ -93,7 +92,6 @@ impl App {
             storage_status: None,
             data_dir_override: config.data_dir.clone(),
             triggered_reminders: HashSet::new(),
-            active_reminder: None,
             drag_index: None,
             drop_target: None,
             editor_expanded: false,
@@ -251,14 +249,30 @@ impl App {
     }
 
     fn check_reminders(&mut self, ctx: &egui::Context) {
-        for due in due_reminders(&self.todos, &self.triggered_reminders, Local::now()) {
-            self.triggered_reminders.insert(due.trigger_id);
-            self.active_reminder = Some(due.message);
-            self.show_from_tray(ctx);
-            ctx.send_viewport_cmd(ViewportCommand::RequestUserAttention(
-                egui::UserAttentionType::Critical,
-            ));
+        let due = due_reminders(&self.todos, &self.triggered_reminders, Local::now());
+        if due.is_empty() {
+            return;
         }
+        for reminder in &due {
+            self.triggered_reminders.insert(reminder.trigger_id.clone());
+        }
+        let message = due
+            .iter()
+            .map(|reminder| reminder.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::thread::spawn(move || {
+            rfd::MessageDialog::new()
+                .set_title("deskTodo 待办提醒")
+                .set_description(&message)
+                .set_level(rfd::MessageLevel::Info)
+                .set_buttons(rfd::MessageButtons::Ok)
+                .show();
+        });
+        self.show_from_tray(ctx);
+        ctx.send_viewport_cmd(ViewportCommand::RequestUserAttention(
+            egui::UserAttentionType::Critical,
+        ));
     }
 
     fn next_repaint_delay(&self) -> Duration {
@@ -291,36 +305,6 @@ impl App {
         self.input.clear();
         save_todos(&self.todos);
     }
-
-    fn draw_reminder_banner(&mut self, ui: &mut egui::Ui) {
-        if let Some(reminder) = self.active_reminder.clone() {
-            egui::Frame::NONE
-                .fill(self.theme().reminder_banner)
-                .corner_radius(egui::CornerRadius::same(10))
-                .inner_margin(10.0)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(format!("⏰ 待办提醒：{reminder}"))
-                                .size(14.0)
-                                .color(egui::Color32::WHITE)
-                                .strong(),
-                        );
-                        if ui
-                            .button(
-                                egui::RichText::new("知道了")
-                                    .size(13.0)
-                                    .color(egui::Color32::WHITE),
-                            )
-                            .clicked()
-                        {
-                            self.active_reminder = None;
-                        }
-                    });
-                });
-            ui.add_space(4.0);
-        }
-    }
 }
 
 impl eframe::App for App {
@@ -345,7 +329,6 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
 
         self.draw_titlebar(&ctx, ui);
-        self.draw_reminder_banner(ui);
 
         if self.show_settings {
             self.draw_settings(ui);
