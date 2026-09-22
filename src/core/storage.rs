@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::RwLock;
 
-fn default_data_dir() -> Option<PathBuf> {
+pub(crate) fn default_data_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|dir| dir.join("deskTodo"))
 }
 

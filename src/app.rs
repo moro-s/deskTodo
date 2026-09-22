@@ -276,12 +276,7 @@ impl App {
             .collect::<Vec<_>>()
             .join("\n");
         std::thread::spawn(move || {
-            rfd::MessageDialog::new()
-                .set_title("deskTodo 待办提醒")
-                .set_description(&message)
-                .set_level(rfd::MessageLevel::Info)
-                .set_buttons(rfd::MessageButtons::Ok)
-                .show();
+            crate::platform::notify::send_notification("deskTodo 待办提醒", &message);
         });
         self.show_from_tray(ctx);
         ctx.send_viewport_cmd(ViewportCommand::RequestUserAttention(
