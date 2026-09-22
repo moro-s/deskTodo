@@ -46,6 +46,182 @@ fn move_todo(todos: &mut Vec<TodoItem>, from: usize, insert_at: usize) -> bool {
     true
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum ButtonKind {
+    Primary,
+    Default,
+    Plain,
+    Text,
+    Danger,
+    Icon,
+}
+
+pub(crate) fn el_button(
+    ui: &mut egui::Ui,
+    label: &str,
+    kind: ButtonKind,
+    theme: &Theme,
+) -> egui::Response {
+    el_button_ex(ui, label, kind, theme, 13.5, Vec2::new(14.0, 7.0))
+}
+
+pub(crate) fn el_button_ex(
+    ui: &mut egui::Ui,
+    label: &str,
+    kind: ButtonKind,
+    theme: &Theme,
+    font_size: f32,
+    padding: Vec2,
+) -> egui::Response {
+    let font_id = FontId::proportional(font_size);
+    let text_width = ui
+        .painter()
+        .layout_no_wrap(label.to_owned(), font_id.clone(), Color32::WHITE)
+        .size()
+        .x;
+    let size = Vec2::new(
+        text_width + padding.x * 2.0,
+        font_size + padding.y * 2.0 + 2.0,
+    );
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    let hovered = response.hovered();
+
+    let (bg, fg, stroke) = match kind {
+        ButtonKind::Primary => {
+            let bg = if hovered {
+                lighten(theme.accent)
+            } else {
+                theme.accent
+            };
+            (bg, Color32::WHITE, egui::Stroke::NONE)
+        }
+        ButtonKind::Default => {
+            if hovered {
+                (
+                    theme.hover_fill,
+                    theme.accent,
+                    egui::Stroke::new(1.0, theme.accent),
+                )
+            } else {
+                (
+                    theme.card,
+                    theme.text_primary,
+                    egui::Stroke::new(1.0, theme.border),
+                )
+            }
+        }
+        ButtonKind::Plain => {
+            if hovered {
+                (
+                    theme.hover_fill,
+                    theme.accent,
+                    egui::Stroke::new(1.0, theme.accent),
+                )
+            } else {
+                (
+                    theme.card,
+                    theme.accent,
+                    egui::Stroke::new(1.0, theme.accent),
+                )
+            }
+        }
+        ButtonKind::Text => {
+            if hovered {
+                (theme.hover_fill, theme.accent, egui::Stroke::NONE)
+            } else {
+                (Color32::TRANSPARENT, theme.text_muted, egui::Stroke::NONE)
+            }
+        }
+        ButtonKind::Danger => {
+            if hovered {
+                (theme.danger_fill, theme.danger, egui::Stroke::NONE)
+            } else {
+                (Color32::TRANSPARENT, theme.danger, egui::Stroke::NONE)
+            }
+        }
+        ButtonKind::Icon => {
+            if hovered {
+                (theme.hover_fill, theme.accent, egui::Stroke::NONE)
+            } else {
+                (Color32::TRANSPARENT, theme.text_muted, egui::Stroke::NONE)
+            }
+        }
+    };
+
+    if bg != Color32::TRANSPARENT {
+        ui.painter()
+            .rect_filled(rect, CornerRadius::same(4), bg);
+    }
+    if stroke.width > 0.0 {
+        ui.painter().rect_stroke(
+            rect,
+            CornerRadius::same(4),
+            stroke,
+            egui::StrokeKind::Inside,
+        );
+    }
+    ui.painter()
+        .text(rect.center(), Align2::CENTER_CENTER, label, font_id, fg);
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+pub(crate) fn el_checkbox(
+    ui: &mut egui::Ui,
+    checked: &mut bool,
+    label: &str,
+    theme: &Theme,
+) {
+    let box_size = 15.0;
+    let font_id = FontId::proportional(13.0);
+    let text_width = if label.is_empty() {
+        0.0
+    } else {
+        ui.painter()
+            .layout_no_wrap(label.to_owned(), font_id.clone(), Color32::WHITE)
+            .size()
+            .x
+            + 6.0
+    };
+    let (rect, response) =
+        ui.allocate_exact_size(Vec2::new(box_size + text_width, 20.0), Sense::click());
+    let hovered = response.hovered();
+    if response.clicked() {
+        *checked = !*checked;
+    }
+    let box_min = Pos2::new(rect.left(), rect.center().y - box_size * 0.5);
+    let box_rect = egui::Rect::from_min_size(box_min, Vec2::splat(box_size));
+    if *checked {
+        ui.painter()
+            .rect_filled(box_rect, CornerRadius::same(3), theme.accent);
+        let first = box_min + Vec2::new(3.5, 8.0);
+        let corner = box_min + Vec2::new(6.5, 11.0);
+        let last = box_min + Vec2::new(11.5, 4.5);
+        ui.painter()
+            .line_segment([first, corner], egui::Stroke::new(2.0, Color32::WHITE));
+        ui.painter()
+            .line_segment([corner, last], egui::Stroke::new(2.0, Color32::WHITE));
+    } else {
+        ui.painter()
+            .rect_filled(box_rect, CornerRadius::same(3), theme.card);
+        ui.painter().rect_stroke(
+            box_rect,
+            CornerRadius::same(3),
+            egui::Stroke::new(1.2, if hovered { theme.accent } else { theme.border }),
+            egui::StrokeKind::Inside,
+        );
+    }
+    if !label.is_empty() {
+        ui.painter().text(
+            Pos2::new(box_rect.right() + 6.0, rect.center().y),
+            Align2::LEFT_CENTER,
+            label,
+            font_id,
+            theme.text_primary,
+        );
+    }
+    let _ = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+}
+
 fn time_spinner_column(
     ui: &mut egui::Ui,
     salt: &str,
@@ -204,7 +380,7 @@ fn draw_time_picker(
             );
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                if ui.button(RichText::new("此刻").size(13.0)).clicked() {
+                if el_button(ui, "此刻", ButtonKind::Text, theme).clicked() {
                     now_clicked = true;
                     ui.memory_mut(|m| {
                         m.data.insert_temp(scroll_marker, true)
@@ -213,14 +389,7 @@ fn draw_time_picker(
                 ui.with_layout(
                     egui::Layout::right_to_left(Align::Center),
                     |ui| {
-                        if ui
-                            .button(
-                                RichText::new("确定")
-                                    .size(13.0)
-                                    .color(theme.accent),
-                            )
-                            .clicked()
-                        {
+                        if el_button(ui, "确定", ButtonKind::Primary, theme).clicked() {
                             egui::Popup::close_all(ui.ctx());
                         }
                     },
@@ -272,12 +441,17 @@ impl App {
                             egui::Layout::right_to_left(egui::Align::Center),
                             |ui| {
                                 ui.add_space(10.0);
-                                if ui
-                                    .button(
-                                        RichText::new("×").size(16.0).color(self.theme().danger),
-                                    )
-                                    .on_hover_text("关闭到托盘")
-                                    .clicked()
+                                let close_theme = self.theme();
+                                if el_button_ex(
+                                    ui,
+                                    "×",
+                                    ButtonKind::Danger,
+                                    close_theme,
+                                    16.0,
+                                    Vec2::new(8.0, 5.0),
+                                )
+                                .on_hover_text("关闭到托盘")
+                                .clicked()
                                 {
                                     self.hide_to_tray(ctx);
                                 }
@@ -292,7 +466,7 @@ impl App {
                                     ui.allocate_exact_size(Vec2::new(30.0, 26.0), Sense::click());
                                 let theme = self.theme();
                                 let btn_bg = if max_btn_response.hovered() {
-                                    lighten(theme.titlebar)
+                                    theme.hover_fill
                                 } else {
                                     theme.titlebar
                                 };
@@ -355,21 +529,34 @@ impl App {
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                                     .on_hover_text(max_tip);
                                 let pin_label = if self.pinned { "置顶√" } else { "置顶" };
-                                if ui
-                                    .button(RichText::new(pin_label).size(14.5))
-                                    .on_hover_text("快捷键 Ctrl+Alt+T")
-                                    .clicked()
+                                let pin_theme = self.theme();
+                                if el_button_ex(
+                                    ui,
+                                    pin_label,
+                                    ButtonKind::Icon,
+                                    pin_theme,
+                                    14.5,
+                                    Vec2::new(10.0, 6.0),
+                                )
+                                .on_hover_text("快捷键 Ctrl+Alt+T")
+                                .clicked()
                                 {
                                     self.set_pinned(ctx, !self.pinned);
                                 }
                                 let theme = self.theme();
-                                if ui
-                                    .button(RichText::new(theme.icon).size(16.0))
-                                    .on_hover_text(format!(
-                                        "主题：{}（点击切换）",
-                                        theme.name
-                                    ))
-                                    .clicked()
+                                if el_button_ex(
+                                    ui,
+                                    theme.icon,
+                                    ButtonKind::Icon,
+                                    theme,
+                                    16.0,
+                                    Vec2::new(8.0, 5.0),
+                                )
+                                .on_hover_text(format!(
+                                    "主题：{}（点击切换）",
+                                    theme.name
+                                ))
+                                .clicked()
                                 {
                                     self.cycle_theme(ctx);
                                 }
@@ -379,33 +566,58 @@ impl App {
 
                 ui.horizontal_centered(|ui| {
                     ui.add_space(10.0);
+                    let nav_theme = self.theme();
                     if self.show_settings {
-                        if ui
-                            .button(RichText::new("‹ 返回").size(15.5))
-                            .on_hover_text("返回主界面")
-                            .clicked()
+                        if el_button_ex(
+                            ui,
+                            "‹ 返回",
+                            ButtonKind::Default,
+                            nav_theme,
+                            15.5,
+                            Vec2::new(10.0, 5.0),
+                        )
+                        .on_hover_text("返回主界面")
+                        .clicked()
                         {
                             self.show_settings = false;
                         }
                     } else {
-                        if ui
-                            .button(RichText::new("‹").size(19.0))
-                            .on_hover_text("上个月")
-                            .clicked()
+                        if el_button_ex(
+                            ui,
+                            "‹",
+                            ButtonKind::Icon,
+                            nav_theme,
+                            19.0,
+                            Vec2::new(6.0, 3.0),
+                        )
+                        .on_hover_text("上个月")
+                        .clicked()
                         {
                             self.shift_month(-1);
                         }
-                        if ui
-                            .button(RichText::new("›").size(19.0))
-                            .on_hover_text("下个月")
-                            .clicked()
+                        if el_button_ex(
+                            ui,
+                            "›",
+                            ButtonKind::Icon,
+                            nav_theme,
+                            19.0,
+                            Vec2::new(6.0, 3.0),
+                        )
+                        .on_hover_text("下个月")
+                        .clicked()
                         {
                             self.shift_month(1);
                         }
-                        if ui
-                            .button(RichText::new("今天").size(15.5))
-                            .on_hover_text("回到今天")
-                            .clicked()
+                        if el_button_ex(
+                            ui,
+                            "今天",
+                            ButtonKind::Plain,
+                            nav_theme,
+                            15.0,
+                            Vec2::new(12.0, 5.0),
+                        )
+                        .on_hover_text("回到今天")
+                        .clicked()
                         {
                             let today = Local::now().date_naive();
                             self.view_year = today.year();
@@ -438,6 +650,11 @@ impl App {
                     title_text,
                     FontId::proportional(17.0),
                     self.theme().text_title,
+                );
+                ui.painter().hline(
+                    titlebar_rect.left()..=titlebar_rect.right(),
+                    titlebar_rect.bottom(),
+                    egui::Stroke::new(1.0, self.theme().separator),
                 );
             });
     }
@@ -528,18 +745,20 @@ impl App {
                     let hover_t =
                         anim_towards(ui, hover_id, if is_hovered && !is_selected { 1.0 } else { 0.0 }, 0.18);
                     let bg = lerp_color(bg, lighten(bg), hover_t);
-                    let radius = CornerRadius::same(8);
+                    let radius = CornerRadius::same(4);
                     ui.painter().rect_filled(rect, radius, bg);
-                    if is_selected || is_today {
+                    if is_today && !is_selected {
                         ui.painter().rect_stroke(
                             rect,
                             radius,
-                            egui::Stroke::new(if is_selected { 1.8 } else { 1.0 }, theme.accent),
+                            egui::Stroke::new(1.0, theme.accent),
                             egui::StrokeKind::Inside,
                         );
                     }
 
-                    let day_color = if is_today {
+                    let day_color = if is_selected {
+                        Color32::WHITE
+                    } else if is_today {
                         theme.accent
                     } else if in_month {
                         theme.text_primary
@@ -559,6 +778,11 @@ impl App {
                         let pending: Vec<_> =
                             items.iter().filter(|item| !item.done).collect();
                         let mut y = rect.left_top().y + 26.0;
+                        let item_color = if is_selected {
+                            Color32::WHITE
+                        } else {
+                            theme.text_secondary
+                        };
                         for item in pending.iter().take(3) {
                             if y + 14.0 > rect.bottom() - 3.0 {
                                 break;
@@ -569,7 +793,7 @@ impl App {
                                 Align2::LEFT_TOP,
                                 text,
                                 FontId::proportional(11.0),
-                                theme.text_secondary,
+                                item_color,
                             );
                             y += 15.0;
                         }
@@ -616,7 +840,13 @@ impl App {
             weekday
         );
         ui.horizontal(|ui| {
-            ui.label(RichText::new(title).size(16.0).color(self.theme().accent));
+            let editor_theme = self.theme();
+            ui.label(
+                RichText::new(title)
+                    .size(16.0)
+                    .color(editor_theme.text_title)
+                    .strong(),
+            );
             ui.with_layout(
                 egui::Layout::right_to_left(egui::Align::Center),
                 |ui| {
@@ -637,7 +867,13 @@ impl App {
                             self.remind_second = now.second() as i32;
                         }
                     }
-                    ui.checkbox(&mut self.remind_enabled, "⏰ 到点提醒");
+                    let checkbox_theme = self.theme();
+                    el_checkbox(
+                        ui,
+                        &mut self.remind_enabled,
+                        "⏰ 到点提醒",
+                        checkbox_theme,
+                    );
                 },
             );
         });
@@ -674,22 +910,11 @@ impl App {
                 ui.with_layout(
                     egui::Layout::right_to_left(egui::Align::Center),
                     |ui| {
-                        if ui
-                            .button(
-                                RichText::new("添加").size(15.0).color(self.theme().accent),
-                            )
-                            .clicked()
-                        {
+                        let theme = self.theme();
+                        if el_button(ui, "添加", ButtonKind::Primary, theme).clicked() {
                             submit = true;
                         }
-                        if ui
-                            .button(
-                                RichText::new("收起")
-                                    .size(14.0)
-                                    .color(self.theme().text_muted),
-                            )
-                            .clicked()
-                        {
+                        if el_button(ui, "收起", ButtonKind::Text, theme).clicked() {
                             collapse = true;
                         }
                         ui.label(
@@ -719,10 +944,7 @@ impl App {
                     self.editor_expanded = true;
                     self.focus_expanded_input = true;
                 }
-                if ui
-                    .button(RichText::new("添加").size(15.0).color(self.theme().accent))
-                    .clicked()
-                {
+                if el_button(ui, "添加", ButtonKind::Primary, self.theme()).clicked() {
                     add_clicked = true;
                 }
             });
@@ -796,7 +1018,8 @@ impl App {
                                 drop_requested = true;
                             }
                             let mut done = todos[index].done;
-                            if ui.checkbox(&mut done, "").changed() {
+                            el_checkbox(ui, &mut done, "", theme);
+                            if done != todos[index].done {
                                 todos[index].done = done;
                                 changed = true;
                             }
@@ -821,10 +1044,16 @@ impl App {
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    if ui
-                                        .button(RichText::new("×").size(15.0).color(theme.danger))
-                                        .on_hover_text("删除")
-                                        .clicked()
+                                    if el_button_ex(
+                                        ui,
+                                        "×",
+                                        ButtonKind::Danger,
+                                        theme,
+                                        15.0,
+                                        Vec2::new(6.0, 4.0),
+                                    )
+                                    .on_hover_text("删除")
+                                    .clicked()
                                     {
                                         todos.remove(index);
                                         changed = true;
@@ -885,14 +1114,7 @@ impl App {
                     }
                     ui.add_space(6.0);
                     ui.horizontal(|ui| {
-                        if ui
-                            .button(
-                                RichText::new("清除已完成")
-                                    .size(13.0)
-                                    .color(theme.text_muted),
-                            )
-                            .clicked()
-                        {
+                        if el_button(ui, "清除已完成", ButtonKind::Text, theme).clicked() {
                             clear_done = true;
                         }
                     });

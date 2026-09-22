@@ -3,7 +3,8 @@ use crate::hotkey;
 use crate::models::HotkeySpec;
 use crate::storage::current_data_dir;
 use crate::theme::{Theme, THEMES};
-use eframe::egui::{self, CornerRadius, Key, RichText, Stroke};
+use crate::ui::{el_button, el_button_ex, ButtonKind};
+use eframe::egui::{self, CornerRadius, Key, RichText, Vec2};
 
 const FONT_SCALES: [(&str, f32); 4] = [("小", 0.85), ("标准", 1.0), ("大", 1.15), ("特大", 1.3)];
 
@@ -19,11 +20,16 @@ const OPACITY_STEPS: [(&str, f32); 6] = [
 fn card<R>(ui: &mut egui::Ui, title: &str, theme: &Theme, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
     egui::Frame::NONE
         .fill(theme.card)
-        .corner_radius(CornerRadius::same(12))
+        .corner_radius(CornerRadius::same(4))
         .inner_margin(16.0)
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.label(RichText::new(title).size(16.0).color(theme.accent).strong());
+            ui.label(
+                RichText::new(title)
+                    .size(15.0)
+                    .color(theme.text_title)
+                    .strong(),
+            );
             ui.add_space(6.0);
             body(ui)
         })
@@ -36,19 +42,12 @@ fn section_button(
     active: bool,
     theme: &Theme,
 ) -> bool {
-    let text = RichText::new(label)
-        .size(14.5)
-        .color(if active {
-            theme.accent
-        } else {
-            theme.text_secondary
-        });
-    let button = egui::Button::new(text).stroke(if active {
-        Stroke::new(1.6, theme.accent)
+    let kind = if active {
+        ButtonKind::Primary
     } else {
-        Stroke::NONE
-    });
-    ui.add(button).clicked()
+        ButtonKind::Default
+    };
+    el_button_ex(ui, &label, kind, theme, 13.0, Vec2::new(14.0, 6.0)).clicked()
 }
 
 impl App {
@@ -91,7 +90,7 @@ impl App {
                         .strong(),
                 );
                 if !self.recording_hotkey
-                    && ui.button(RichText::new("修改快捷键").size(14.0))
+                    && el_button(ui, "修改快捷键", ButtonKind::Default, theme)
                         .clicked()
                 {
                     self.recording_hotkey = true;
@@ -262,19 +261,16 @@ impl App {
                 {
                     apply_clicked = true;
                 }
-                if ui
-                    .button(RichText::new("应用").size(14.0).color(theme.accent))
-                    .clicked()
-                {
+                if el_button(ui, "应用", ButtonKind::Primary, theme).clicked() {
                     apply_clicked = true;
                 }
             });
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if ui.button(RichText::new("恢复默认").size(13.5)).clicked() {
+                if el_button(ui, "恢复默认", ButtonKind::Default, theme).clicked() {
                     reset_clicked = true;
                 }
-                if ui.button(RichText::new("打开文件夹").size(13.5)).clicked() {
+                if el_button(ui, "打开文件夹", ButtonKind::Default, theme).clicked() {
                     open_clicked = true;
                 }
             });
