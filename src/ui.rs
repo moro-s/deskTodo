@@ -496,7 +496,7 @@ impl App {
                 egui::Panel::right("titlebar_right")
                     .frame(egui::Frame::NONE.fill(titlebar_fill))
                     .resizable(false)
-                    .exact_size(216.0)
+                    .exact_size(246.0)
                     .show_separator_line(false)
                     .show(ui, |ui| {
                         ui.with_layout(
@@ -622,6 +622,43 @@ impl App {
                                 {
                                     self.cycle_theme(ctx);
                                 }
+                                let (settings_rect, settings_response) =
+                                    ui.allocate_exact_size(Vec2::new(30.0, 26.0), Sense::click());
+                                let settings_theme = self.theme();
+                                if settings_response.hovered() {
+                                    ui.painter().rect_filled(
+                                        settings_rect,
+                                        CornerRadius::same(6),
+                                        settings_theme.hover_fill,
+                                    );
+                                }
+                                let settings_stroke = egui::Stroke::new(
+                                    1.4,
+                                    if settings_response.hovered() {
+                                        settings_theme.text_primary
+                                    } else {
+                                        settings_theme.text_secondary
+                                    },
+                                );
+                                let gear_center = settings_rect.center();
+                                ui.painter().circle_stroke(gear_center, 5.0, settings_stroke);
+                                for tooth in 0..8 {
+                                    let angle = tooth as f32 * std::f32::consts::TAU / 8.0;
+                                    let direction = Vec2::new(angle.cos(), angle.sin());
+                                    ui.painter().line_segment(
+                                        [
+                                            gear_center + direction * 6.5,
+                                            gear_center + direction * 9.0,
+                                        ],
+                                        settings_stroke,
+                                    );
+                                }
+                                if settings_response.clicked() {
+                                    self.show_settings = true;
+                                }
+                                let _ = settings_response
+                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                    .on_hover_text("打开设置");
                             },
                         );
                     });
