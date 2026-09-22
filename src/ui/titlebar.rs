@@ -1,7 +1,23 @@
+use super::text::text_metrics;
 use super::widgets::{el_button_ex, ButtonKind};
 use crate::app::App;
 use chrono::{Datelike, Local};
-use eframe::egui::{self, Align2, CornerRadius, FontId, Pos2, Sense, Vec2, ViewportCommand};
+use eframe::egui::{
+    self, Align2, Color32, CornerRadius, FontId, Pos2, Sense, Vec2, ViewportCommand,
+};
+
+fn paint_centered_glyph(
+    ui: &mut egui::Ui,
+    center: Pos2,
+    glyph: &str,
+    font_size: f32,
+    color: Color32,
+) {
+    let font_id = FontId::proportional(font_size);
+    let offset = text_metrics(ui, glyph, &font_id).visual_offset;
+    ui.painter()
+        .text(center - offset, Align2::CENTER_CENTER, glyph, font_id, color);
+}
 
 impl App {
     pub(crate) fn draw_titlebar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
@@ -23,19 +39,28 @@ impl App {
                             |ui| {
                                 ui.add_space(10.0);
                                 let close_theme = self.theme();
-                                if el_button_ex(
+                                let (close_rect, close_response) =
+                                    ui.allocate_exact_size(Vec2::new(30.0, 26.0), Sense::click());
+                                if close_response.hovered() {
+                                    ui.painter().rect_filled(
+                                        close_rect,
+                                        CornerRadius::same(6),
+                                        close_theme.danger_fill,
+                                    );
+                                }
+                                paint_centered_glyph(
                                     ui,
+                                    close_rect.center(),
                                     "×",
-                                    ButtonKind::Danger,
-                                    close_theme,
                                     16.0,
-                                    Vec2::new(8.0, 5.0),
-                                )
-                                .on_hover_text("关闭到托盘")
-                                .clicked()
-                                {
+                                    close_theme.danger,
+                                );
+                                if close_response.clicked() {
                                     self.hide_to_tray(ctx);
                                 }
+                                let _ = close_response
+                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                    .on_hover_text("关闭到托盘");
                                 let maximized =
                                     ctx.input(|i| i.viewport().maximized).unwrap_or(false);
                                 let max_tip = if maximized {
@@ -110,7 +135,7 @@ impl App {
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                                     .on_hover_text(max_tip);
                                 let (pin_rect, pin_response) =
-                                    ui.allocate_exact_size(Vec2::new(26.0, 26.0), Sense::click());
+                                    ui.allocate_exact_size(Vec2::new(30.0, 26.0), Sense::click());
                                 let pin_theme = self.theme();
                                 if pin_response.hovered() {
                                     ui.painter().rect_filled(
@@ -156,25 +181,39 @@ impl App {
                                 let _ = pin_response
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                                     .on_hover_text(pin_tip);
-                                let theme = self.theme();
-                                if el_button_ex(
+                                let switch_theme = self.theme();
+                                let (switch_rect, switch_response) =
+                                    ui.allocate_exact_size(Vec2::new(30.0, 26.0), Sense::click());
+                                if switch_response.hovered() {
+                                    ui.painter().rect_filled(
+                                        switch_rect,
+                                        CornerRadius::same(6),
+                                        switch_theme.hover_fill,
+                                    );
+                                }
+                                let icon_color = if switch_response.hovered() {
+                                    switch_theme.accent
+                                } else {
+                                    switch_theme.text_muted
+                                };
+                                paint_centered_glyph(
                                     ui,
-                                    theme.icon,
-                                    ButtonKind::Icon,
-                                    theme,
+                                    switch_rect.center(),
+                                    switch_theme.icon,
                                     16.0,
-                                    Vec2::new(8.0, 5.0),
-                                )
-                                .on_hover_text(format!(
-                                    "主题：{}（点击切换）",
-                                    theme.name
-                                ))
-                                .clicked()
-                                {
+                                    icon_color,
+                                );
+                                if switch_response.clicked() {
                                     self.cycle_theme(ctx);
                                 }
+                                let _ = switch_response
+                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                    .on_hover_text(format!(
+                                        "主题：{}（点击切换）",
+                                        switch_theme.name
+                                    ));
                                 let (settings_rect, settings_response) =
-                                    ui.allocate_exact_size(Vec2::new(26.0, 26.0), Sense::click());
+                                    ui.allocate_exact_size(Vec2::new(30.0, 26.0), Sense::click());
                                 let settings_theme = self.theme();
                                 if settings_response.hovered() {
                                     ui.painter().rect_filled(
@@ -294,11 +333,13 @@ impl App {
                 } else {
                     format!("{}年{}月", self.view_year, self.view_month)
                 };
+                let title_font = FontId::proportional(17.0);
+                let title_offset = text_metrics(ui, &title_text, &title_font).visual_offset;
                 ui.painter().text(
-                    titlebar_rect.center(),
+                    titlebar_rect.center() - title_offset,
                     Align2::CENTER_CENTER,
                     title_text,
-                    FontId::proportional(17.0),
+                    title_font,
                     self.theme().text_title,
                 );
                 ui.painter().hline(

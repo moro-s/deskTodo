@@ -1,4 +1,4 @@
-use eframe::egui::{Color32, FontId, Ui};
+use eframe::egui::{Color32, FontId, Ui, Vec2};
 use std::borrow::Cow;
 use std::sync::OnceLock;
 
@@ -33,11 +33,24 @@ pub(crate) fn number(value: u32) -> &'static str {
         .unwrap_or_default()
 }
 
-pub(crate) fn measure_width(ui: &Ui, text: &str, font_id: &FontId) -> f32 {
-    ui.painter()
-        .layout_no_wrap(text.to_owned(), font_id.clone(), Color32::WHITE)
-        .size()
-        .x
+pub(crate) struct TextMetrics {
+    pub(crate) width: f32,
+    pub(crate) visual_offset: Vec2,
+}
+
+pub(crate) fn text_metrics(ui: &Ui, text: &str, font_id: &FontId) -> TextMetrics {
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), font_id.clone(), Color32::WHITE);
+    let visual_offset = if galley.mesh_bounds.is_positive() {
+        galley.mesh_bounds.center() - galley.rect.center()
+    } else {
+        Vec2::ZERO
+    };
+    TextMetrics {
+        width: galley.size().x,
+        visual_offset,
+    }
 }
 
 pub(crate) fn truncate_chars(text: &str, max_chars: usize) -> Cow<'_, str> {
