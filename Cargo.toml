@@ -7,10 +7,10 @@ license = "Apache-2.0"
 [dependencies]
 chrono = "0.4"
 dirs = "7.0.0"
-earcut = "0.4.11"
 eframe = { version = "0.36.2", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }
-eguidev = { path = "vendor/eguidev/crates/eguidev" }
-eguidev_runtime = { path = "vendor/eguidev/crates/eguidev_runtime", optional = true }
+egui_extras = { version = "0.36.2", default-features = false, features = ["svg"] }
+eguidev = { git = "file:///D:/aiworkspace/eguidev-private" }
+eguidev_runtime = { git = "file:///D:/aiworkspace/eguidev-private", optional = true }
 global-hotkey = "0.8.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
