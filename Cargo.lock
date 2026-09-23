@@ -967,7 +967,7 @@ dependencies = [
 [[package]]
 name = "eguidev"
 version = "0.1.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "egui",
  "schemars",
@@ -979,7 +979,7 @@ dependencies = [
 [[package]]
 name = "eguidev_runtime"
 version = "0.1.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -2907,7 +2907,7 @@ checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 [[package]]
 name = "ruau"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "ruau-bytecode",
  "ruau-declaration",
@@ -2925,7 +2925,7 @@ dependencies = [
 [[package]]
 name = "ruau-bytecode"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "foldhash",
  "ruau-syntax",
@@ -2935,7 +2935,7 @@ dependencies = [
 [[package]]
 name = "ruau-declaration"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "ruau-syntax",
 ]
@@ -2943,7 +2943,7 @@ dependencies = [
 [[package]]
 name = "ruau-executor"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "blake3",
  "ruau-bytecode",
@@ -2960,7 +2960,7 @@ dependencies = [
 [[package]]
 name = "ruau-filesystem"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "cap-std",
  "ruau-source",
@@ -2974,7 +2974,7 @@ dependencies = [
 [[package]]
 name = "ruau-json-schema"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "ruau-declaration",
  "serde_json",
@@ -2983,7 +2983,7 @@ dependencies = [
 [[package]]
 name = "ruau-session"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "ruau-bytecode",
  "ruau-declaration",
@@ -2998,12 +2998,12 @@ dependencies = [
 [[package]]
 name = "ruau-source"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 
 [[package]]
 name = "ruau-surface"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "blake3",
  "ruau-bytecode",
@@ -3017,7 +3017,7 @@ dependencies = [
 [[package]]
 name = "ruau-syntax"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "serde",
  "serde_json",
@@ -3027,7 +3027,7 @@ dependencies = [
 [[package]]
 name = "ruau-typecheck"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "foldhash",
  "ruau-source",
@@ -3039,7 +3039,7 @@ dependencies = [
 [[package]]
 name = "ruau-vm"
 version = "0.4.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "blake3",
  "foldhash",
@@ -3605,7 +3605,7 @@ dependencies = [
 [[package]]
 name = "tmcp"
 version = "0.6.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -3628,7 +3628,7 @@ dependencies = [
 [[package]]
 name = "tmcp-macros"
 version = "0.6.0"
-source = "git+file:///D:/aiworkspace/eguidev-private#b75ce161a928341cdb9f992f314ca0757e4c7be1"
+source = "git+https://github.com/moro-s/eguidev-private.git#ed69b75ad458f12edbd374ac92915c13a739e56f"
 dependencies = [
  "heck",
  "proc-macro2",

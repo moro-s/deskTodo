@@ -30,7 +30,7 @@
 
 ## 从源码构建
 
-需要 Rust 1.95+（推荐通过 [rustup](https://rustup.rs/) 安装），以及 eguidev 私有仓库 `eguidev-private` 的访问权限（依赖经 git 引入）。
+需要 Rust 1.95+（推荐通过 [rustup](https://rustup.rs/) 安装），以及 [eguidev-private](https://github.com/moro-s/eguidev-private) 私有仓库的访问权限（依赖经 git 引入）。
 
 ```bash
 git clone https://github.com/moro-s/deskTodo.git
@@ -103,7 +103,7 @@ cargo build --features devtools
 `edev` 是配套的命令行启动器，从 eguidev 私有仓库安装（保证与运行时版本一致）：
 
 ```bash
-cargo install --git <eguidev-private 仓库地址> edev
+cargo install --git https://github.com/moro-s/eguidev-private.git edev
 ```
 
 常用命令（通过项目根目录的 `.edev.toml` 配置启动）：
@@ -143,7 +143,7 @@ edev smoke
 ## 技术栈
 
 - [eframe](https://github.com/emilk/egui/tree/main/crates/eframe) / [egui](https://github.com/emilk/egui) 0.36 —— 即时模式 GUI，采用 glow（OpenGL）渲染后端
-- [eguidev](https://github.com/cortesi/eguidev) —— 进程内 UI 自动化与 MCP 工具链（私有仓库 `eguidev-private`，经 git 依赖引入）
+- [eguidev](https://github.com/cortesi/eguidev) —— 进程内 UI 自动化与 MCP 工具链（私有仓库 [eguidev-private](https://github.com/moro-s/eguidev-private)，经 git 依赖引入）
 - [tray-icon](https://github.com/tauri-apps/tray-icon) —— 跨平台系统托盘
 - [global-hotkey](https://github.com/tauri-apps/global-hotkey) —— 全局快捷键
 - [chrono](https://github.com/chronotope/chrono) —— 日期时间处理
