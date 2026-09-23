@@ -14,13 +14,16 @@ fn time_spinner_column(
     let col_w = 46.0;
     let row_h = 30.0;
     let viewport_h = row_h * 5.0;
-    let max_offset = (max as f32 * row_h - viewport_h).max(0.0);
+    let buffer_rows = 2;
+    let buffer = buffer_rows as f32;
+    let max_offset = ((max as f32 + buffer - 0.5) * row_h - viewport_h * 0.5).max(0.0);
 
     let base_id = egui::Id::new(salt);
     let offset_id = base_id.with("offset");
     let target_id = base_id.with("target");
     let rect_id = base_id.with("rect");
-    let center_offset = |index: i32| (index as f32 + 0.5) * row_h - viewport_h * 0.5;
+    let center_offset =
+        |index: i32| (index as f32 + buffer + 0.5) * row_h - viewport_h * 0.5;
 
     let mut offset = ui
         .memory(|m| m.data.get_temp::<f32>(offset_id))
@@ -76,34 +79,40 @@ fn time_spinner_column(
         .show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.set_width(col_w);
-                for candidate in 0..max {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                for candidate in -buffer_rows..max + buffer_rows {
+                    let in_range = (0..max).contains(&candidate);
                     let selected = candidate == *value;
                     let (rect, response) =
                         ui.allocate_exact_size(Vec2::new(col_w, row_h), Sense::click());
-                    let clicked = response.clicked();
-                    let row_hovered = response.hovered();
+                    let clicked = in_range && response.clicked();
+                    let row_hovered = in_range && response.hovered();
                     if selected {
                         ui.painter()
                             .rect_filled(rect, CornerRadius::same(6), theme.cell_today);
                     }
-                    ui.painter().text(
-                        rect.center(),
-                        Align2::CENTER_CENTER,
-                        padded_number(candidate as u32),
-                        FontId::proportional(14.0),
-                        if selected {
-                            theme.accent
-                        } else if row_hovered {
-                            theme.text_primary
-                        } else {
-                            theme.text_secondary
-                        },
-                    );
+                    if in_range {
+                        ui.painter().text(
+                            rect.center(),
+                            Align2::CENTER_CENTER,
+                            padded_number(candidate as u32),
+                            FontId::proportional(14.0),
+                            if selected {
+                                theme.accent
+                            } else if row_hovered {
+                                theme.text_primary
+                            } else {
+                                theme.text_secondary
+                            },
+                        );
+                    }
                     if clicked {
                         *value = candidate;
                         target = center_offset(candidate).clamp(0.0, max_offset);
                     }
-                    let _ = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if in_range {
+                        let _ = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+                    }
                 }
             });
         })

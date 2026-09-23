@@ -63,6 +63,7 @@ impl App {
             log_level.display_name()
         );
         font::install_cjk_font(&cc.egui_ctx);
+        egui_extras::install_image_loaders(&cc.egui_ctx);
         let today = Local::now().date_naive();
 
         let theme_index = config.theme.min(THEMES.len() - 1);

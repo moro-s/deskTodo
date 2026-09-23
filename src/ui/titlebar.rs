@@ -85,11 +85,14 @@ impl App {
                                 } else {
                                     theme.text_secondary
                                 };
-                                super::zoom_icon::ZOOM_ICON.paint(
-                                    ui.painter(),
-                                    max_btn_rect.center(),
-                                    15.0,
-                                    max_icon_color,
+                                ui.put(
+                                    egui::Rect::from_center_size(
+                                        max_btn_rect.center(),
+                                        Vec2::splat(15.0),
+                                    ),
+                                    egui::Image::new(egui::include_image!("../../assets/zoom.svg"))
+                                        .fit_to_exact_size(Vec2::splat(15.0))
+                                        .tint(max_icon_color),
                                 );
                                 if max_btn_response.clicked() {
                                     ctx.send_viewport_cmd(ViewportCommand::Maximized(!maximized));
@@ -115,11 +118,14 @@ impl App {
                                 } else {
                                     pin_theme.text_secondary
                                 };
-                                super::pin_icon::PIN_ICON.paint(
-                                    ui.painter(),
-                                    pin_rect.center(),
-                                    15.0,
-                                    pin_color,
+                                ui.put(
+                                    egui::Rect::from_center_size(
+                                        pin_rect.center(),
+                                        Vec2::splat(15.0),
+                                    ),
+                                    egui::Image::new(egui::include_image!("../../assets/pin.svg"))
+                                        .fit_to_exact_size(Vec2::splat(15.0))
+                                        .tint(pin_color),
                                 );
                                 if pin_response.clicked() {
                                     self.set_pinned(ctx, !self.pinned);
